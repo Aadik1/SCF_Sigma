@@ -1,0 +1,11 @@
+program parallel_test_1
+use OMP_LIB 
+implicit none 
+
+!$OMP PARALLEL
+
+	print *, 'Hello from process:', OMP_GET_THREAD_NUM()
+
+!$OMP END PARALLEL
+
+end program 
