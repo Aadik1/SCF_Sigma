@@ -7,7 +7,7 @@ subroutine input_SOC()
   close(22)
   
   T = 300.d0
-  lamb = Gamma0/2.d0
+  lamb = 0.d0 !Gamma0/2.d0
   t_hop = 2.d0*Gamma0
   E_CC = mu*Gamma0*2.d0
   beta = 1.d0/(kb * T)
@@ -29,7 +29,7 @@ subroutine PrintFunctions()
   
   write(12,'(/a)') '... Hamiltonian:'
   do i = 1, Natoms
-     write(12, *) (H(i,j), j=1,Natoms)
+     write(12, '(10(a,2f10.5,a))') (' [',H(i,j),'] ', j=1,Natoms)
   end do
   
   !.... checking if Hermitian  

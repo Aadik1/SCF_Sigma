@@ -96,3 +96,30 @@
   subroutine Filelen(N, filename)
     implicit none
     integer :: N, iostat
+    character(len=300) :: line
+    character(*), intent(in) :: filename
+    
+    open(unit=11, file=filename, status='old', iostat=iostat)
+    if (iostat /= 0) then
+       write(*,*) 'Error reading file', iostat
+       stop
+    end if
+    N = 0
+    do
+       read(11, '(A)', iostat=iostat) line
+       if (iostat /= 0) exit
+       N = N + 1
+    end do
+    close(11)
+    
+  end subroutine Filelen
+  
+  !....................defines the rotation vector about the z-axis
+  subroutine VecAssign(Ri, wi)
+    implicit none
+    real*8, dimension(:) :: Ri(3), wi(3)
+    
+    wi = 0.d0
+    wi(1) = Ri(2)
+    wi(2) = -Ri(1)
+  end subroutine VecAssign

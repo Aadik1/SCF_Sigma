@@ -23,7 +23,7 @@ program StypeJunction_Spin
   allocate(H(Natoms,Natoms))
   allocate(GammaL(Natoms, Natoms)); allocate(GammaR(Natoms, Natoms))
   call SOC_Hamiltonian()
-     
+   
   GammaL = (0.d0, 0.d0); GammaL(1,1) = 1.d0;  GammaL(2,2) = 2.d0
   
   GammaR = (0.d0, 0.d0); GammaR(Natoms-1, Natoms-1) = 1.d0;  GammaR(Natoms, Natoms) = 2.d0
@@ -59,7 +59,7 @@ program StypeJunction_Spin
 
   call PrintFunctions()
   deallocate(Eigenvec, Ev)
-
+STOP!............remember to get rid of this>>>>>>>>>>>>>>
   
 !.......................Allocates Greens Functions for the integrals within the Sigmas across all omegas and organises them into user defined type GF0 and GFf in 'mod_Gfunctions.f90'
   allocate(GF0%r(Natoms, Natoms, N_of_w));  allocate(GF0%a(Natoms, Natoms, N_of_w))

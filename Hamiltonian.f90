@@ -43,7 +43,6 @@ contains
 !..................diagonal        
        H(ii-1,ii-1)=E_CC
        H(ii,ii)    =E_CC
-       
 !.................. hopping       
        if(i.le.Nat-1) then
           j=i+1 ; jj=2*j
