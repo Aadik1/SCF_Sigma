@@ -24,9 +24,9 @@ program StypeJunction_Spin
   allocate(GammaL(Natoms, Natoms)); allocate(GammaR(Natoms, Natoms))
   call SOC_Hamiltonian()
    
-  GammaL = (0.d0, 0.d0); GammaL(1,1) = 1.d0;  GammaL(2,2) = 2.d0
+  GammaL = (0.d0, 0.d0); GammaL(1,1) = 1.d0;  GammaL(2,2) = 0.d0
   
-  GammaR = (0.d0, 0.d0); GammaR(Natoms-1, Natoms-1) = 1.d0;  GammaR(Natoms, Natoms) = 2.d0
+  GammaR = (0.d0, 0.d0); GammaR(Natoms-1, Natoms-1) = 0.d0;  GammaR(Natoms, Natoms) = 1.d0
   
   !......................Defines the level width funcitons for L,R-leads to central region, i.e. the respective couplings
   
@@ -45,7 +45,7 @@ program StypeJunction_Spin
   Eigenvec = H
   call complex_eigen_symm_martix(Eigenvec, Natoms, Ev) !...need to use correct subroutine for complex Hamiltonian
   
-  w_init = Ev(1)-10.d0; w_fin = Ev(Natoms)+20.d0
+  w_init = Ev(1)-10.d0; w_fin = Ev(Natoms)+10.d0
   N_of_w = (w_fin - w_init)/delta ; print *, 'N_of_w:', N_of_w
   
   write(3,*) 'Temp:', T, 'delta:', delta, 'Hamiltonian Dimension:', Natoms, '# of omegas:', N_of_w
@@ -59,7 +59,6 @@ program StypeJunction_Spin
 
   call PrintFunctions()
   deallocate(Eigenvec, Ev)
-STOP!............remember to get rid of this>>>>>>>>>>>>>>
   
 !.......................Allocates Greens Functions for the integrals within the Sigmas across all omegas and organises them into user defined type GF0 and GFf in 'mod_Gfunctions.f90'
   allocate(GF0%r(Natoms, Natoms, N_of_w));  allocate(GF0%a(Natoms, Natoms, N_of_w))

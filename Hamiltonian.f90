@@ -43,6 +43,7 @@ contains
 !..................diagonal        
        H(ii-1,ii-1)=E_CC
        H(ii,ii)    =E_CC
+       
 !.................. hopping       
        if(i.le.Nat-1) then
           j=i+1 ; jj=2*j
@@ -51,7 +52,7 @@ contains
        end if
        
 !...................spin-orbit          
-       if(i.le.Nat-2) then
+      if(i.le.Nat-2) then
           j=i+2 ; jj=2*j 
           call helix_coordinate(r,i)
           call helix_coordinate(r1,i+1)
@@ -64,7 +65,7 @@ contains
           H(ii,jj-1)   = im*lamb * (v(1)+im*v(2))
           H(ii,jj)     = im*lamb * (-v(3))
           
-       end if
+      end if
     end do
     
 !........ make Hermitian

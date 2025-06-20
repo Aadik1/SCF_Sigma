@@ -39,10 +39,9 @@
     trace=s 
   end subroutine Trace_of_A
 
-  subroutine vec_cross_product(a,b,c, N)
+  subroutine vec_cross_product(a,b,c)
     implicit none
-    integer :: N
-    real*8, dimension(N) :: a, b, c
+    real*8, dimension(3) :: a, b, c
     
     c = 0.d0
     
