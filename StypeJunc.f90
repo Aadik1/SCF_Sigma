@@ -5,6 +5,7 @@ program StypeJunction_Spin
   implicit none
   real*8 :: V1, J_up, J_down, total_time
   integer ::  k, i, start_tick, end_tick, rate, max_count
+  character(len=30) :: vfn
   
  !....creates runtime datasheet 
   open(22, file='runtime_datasheet.dat', status='unknown')  
@@ -78,8 +79,10 @@ program StypeJunction_Spin
   !.......................Calculates and plots Voltage vs Current curve
   !...For now, sticking to a single voltage to run pulay
 
-  open(3, file='Print.dat', status='replace')
-  open(30, file='Volt_Current_up.dat', status='replace')
+  open(3, file='Print.dat', status='unknown')
+
+  write(vfn,'(i0)') order
+  open(30, file='Volt_Current_'//trim(vfn)//'.dat', status='unknown')
   
   print *, 'Pre-voltage' 
   do k = 0, Volt_range
