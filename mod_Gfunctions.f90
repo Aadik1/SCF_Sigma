@@ -98,7 +98,7 @@ subroutine G0_L_G(Volt)
      work3 = matmul(matmul(work1, im*(fermi_dist(w, Volt)*GammaL + fermi_dist(w, 0.d0)*GammaR)), work2) !...Embedding SigmaL
 
      GF0%L(:,:,j) = work3
-     GF0%G(:,:,:) =  GF0%L(:,:,:) + GF0%R(:,:,:) - GF0%A(:,:,:)
+     GF0%G =  GF0%L + GF0%R - GF0%A
   end do
 end subroutine G0_L_G
 
@@ -277,12 +277,10 @@ subroutine G_full(iw, Volt) !... Full Greens function, leaves Retarded and Advan
   !.....Embedding contribution of Sigma
   SigmaL = SigmaL + im*(fermi_dist(w, Volt)*GammaL + fermi_dist(w, 0.d0)*GammaR)/hbar    
 
-  !$OMP CRITICAL
   GFf%R(:,:,iw) = w1; GFf%A(:,:,iw) = w2 
   !.............full GL and GG, Eq. (16) and (17)
   GFf%L(:,:,iw) = matmul(matmul(w1, SigmaL), w2) !.. GL = Gr * SigmaL * Ga
   GFf%G(:,:,iw) = GFf%L(:,:,iw) +  GFf%R(:,:,iw) -  GFf%A(:,:,iw)
-  !$OMP END CRITICAL
 end subroutine G_full
   
 !====================================================
@@ -369,6 +367,7 @@ subroutine SCF_GFs(Volt)
      
      !..... calculation of the error
 
+     err = 0.d0
      !$OMP PARALLEL DO PRIVATE(iw, i, diff) REDUCTION(+:err)
      do iw = 1, N_of_w
         do i=1,Natoms
