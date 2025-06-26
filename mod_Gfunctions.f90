@@ -5,9 +5,8 @@ module GreensFunctions
   integer :: INFO
 
   real*8, parameter :: epsilon = 1e-9
-  real*8, allocatable, dimension(:) :: Ev, Hub
-  real*8, allocatable, dimension(:) :: omega
-  real*8 :: pulay
+  real*8, allocatable, dimension(:) :: Hub, omega, Ev
+  real*8 :: pulay, dw, up
   
   complex*16, allocatable, dimension(:,:) :: GammaL, GammaR, Eigenvec, G_nil
 !  complex*16, allocatable, dimension(:,:) ::  SigmaL, Sigma1, SigmaR
@@ -45,21 +44,21 @@ subroutine GL_of_0()
   !.....ei - eigenvalues of the Hamiltonian 
   implicit none
   integer :: i, j, k1
+  complex*16 :: s
   real*8 :: pp
   
-  G_nil =(0.d0, 0.d0)
-  do k1 = 1, N_of_w
-     
-     do i = 1, Natoms
-        do j = 1, Natoms 
-           G_nil(i,j) = G_nil(i,j) + GF0%L(i,j,k1)
-        end do
+  pp=delta/(2.d0*pi)
+  do i = 1, Natoms 
+     s =(0.d0, 0.d0)
+     do k1 = 1, N_of_w
+        s = s + GF0%L(i,i,k1)
      end do
-     
+     G_nil(i,i)=s*pp
   end do
   
-  pp=delta/(2.d0*pi)
-  G_nil=G_nil*pp
+  write(3,*) '----------------G_nil-------------------'
+  write(3,*) G_nil(1,1), G_nil(2,2), G_nil(3,3)
+  write(3,*) '----------------G_nil-------------------'
   
 end subroutine GL_of_0
 
@@ -69,19 +68,19 @@ subroutine G0_R_A()
   integer :: j, i
   real*8 :: w
   
-  do j = 1, N_of_w
-     work1 = -H + 0.5d0*(im/hbar) * (GammaL + GammaR) 
-     w = omega(j)
-     do i = 1 , Natoms
-        work1(i,i) = work1(i,i) + hbar*(w +im*0.01d0)
-     end do
-     
-     call Inverse_complex(Natoms, work1, info)
-     call Hermitian_Conjg(work1, Natoms, work2)
-     
-     GF0%r(:,:,j) = work1
-     GF0%a(:,:,j) = work2       
-  end do
+    do j = 1, N_of_w
+       work1 = -H + 0.5d0*(im/hbar) * (GammaL + GammaR) !LK <========= must be +
+       w = omega(j)
+       do i = 1 , Natoms
+          work1(i,i) = work1(i,i) + hbar*(w +im*0.01d0)
+        end do
+       
+       call Inverse_complex(Natoms, work1, info)
+       call Hermitian_Conjg(work1, Natoms, work2)
+       
+       GF0%r(:,:,j) = work1
+       GF0%a(:,:,j) = work2
+    end do
 end subroutine G0_R_A
 
 subroutine G0_L_G(Volt)
@@ -90,16 +89,18 @@ subroutine G0_L_G(Volt)
   real*8 :: Volt, w
   integer :: j
   
-  work1 = (0.d0, 0.d0); work2 =(0.d0, 0.d0); work3 = (0.d0, 0.d0)
-  do j = 1 , N_of_w
-     w = omega(j)
-     work1 = GF0%r(:,:,j) 
-     work2 = GF0%a(:,:,j) 
-     work3 = matmul(matmul(work1, im*(fermi_dist(w, Volt)*GammaL + fermi_dist(w, 0.d0)*GammaR)), work2) !...Embedding SigmaL
-
-     GF0%L(:,:,j) = work3
-     GF0%G =  GF0%L + GF0%R - GF0%A
-  end do
+    work1 = (0.d0, 0.d0) ; work2 =(0.d0, 0.d0) ; work3 = (0.d0, 0.d0)
+!     work4 = (0.d0, 0.d0)
+    do j = 1 , N_of_w
+       w = omega(j)
+       work1 = GF0%r(:,:,j) 
+       work2 = GF0%a(:,:,j) 
+       work3 = matmul(matmul(work1, im*(fermi_dist(w, Volt)*GammaL + fermi_dist(w, 0.d0)*GammaR)), work2) 
+!       work4 = matmul(matmul(work1, im*((fermi_dist(w, Volt)-1.d0)*GammaL + (fermi_dist(w, 0.d0)-1.d0)*GammaR)), work2)
+       GF0%L(:,:,j) = work3
+!       GF0%G(:,:,j) = work4
+    end do
+    GF0%G =  GF0%L + GF0%R - GF0%A
 end subroutine G0_L_G
 
 !=====================================================
@@ -112,7 +113,7 @@ subroutine first_order_sigma(Sigma1)
   complex*16 :: Hartree
   complex*16, dimension(:,:) :: Sigma1(Natoms, Natoms) 
   
-  Sigma1 = (0.d0, 0.d0)
+  Sigma1 = (0.d0, 0.d0); Hartree = (0.d0, 0.d0)
   
   do i = 1, Natoms, 2 !..orbitals 
 
@@ -127,9 +128,9 @@ subroutine first_order_sigma(Sigma1)
  
   end do
   
-  write(3,*) '-----------Hartree-Fock------------'
-  write(3,*) Sigma1(1,1), Sigma1(2,2), Sigma1(3,3)
-  write(3,*) '-----------------------------------'
+!  write(3,*) '-----------Hartree-Fock------------'
+!  write(3,*) Sigma1(1,1), Sigma1(2,2), Sigma1(3,3)
+!  write(3,*) '-----------------------------------'
   
 end subroutine first_order_sigma
 
@@ -147,7 +148,7 @@ complex*16 function Omega_r(i, j, sp, sp1, iw)
      do k_2 = 1, N_of_w
         k_3 = iw- k_1 +k_2
 
-        if (k_3 .ge. 1 .and. k_3 .le. N_of_w) then        
+        if (k_3 .ge. 1 .and. k_3 .le. N_of_w) then       
            do s = 0, 1 !...Sum over orbitals
               do s1 = 0, 1
                  m = i+s
@@ -170,12 +171,12 @@ complex*16 function Omega_r(i, j, sp, sp1, iw)
   
   pp = (delta/2.d0*pi)
   Omega_R = Omr*pp*pp
-  write(3,*) '-----------Omega_R------------'
-  write(3,*) Omega_R
-  write(3,*) '------------------------------'
+ ! write(3,*) '-----------Omega_R------------'
+ ! write(3,*) Omega_R
+ ! write(3,*) '------------------------------'
 end function Omega_r
 
-complex*16 function int_SigL(i,j,sp,sp1,iw) !... interaction contributions of Eq. (3) and (4) in CHE
+complex*16 function int_SigL(i,j,sp,sp1,iw) !... interaction contributions of Eq. (23) + Eq. (26) 
   implicit none
   integer :: i, j, k1, k2, k3, iw, m, n, sp, sp1, s, s1, ii, jj
   complex*16 ::  SigL
@@ -204,9 +205,9 @@ complex*16 function int_SigL(i,j,sp,sp1,iw) !... interaction contributions of Eq
   
   SigL = SigL*(delta*delta/4.d0*pi*pi)
   int_SigL = SigL
-  write(3,*) '-----------SigL------------'
-  write(3,*) SigL
-  write(3,*) '---------------------------'
+  !write(3,*) '-----------SigL------------'
+  !write(3,*) SigL
+  !write(3,*) '---------------------------'
 end function int_SigL
 
 !=====================================================
@@ -417,7 +418,6 @@ subroutine SCF_GFs(Volt)
         write(*,*)'... REACHED REQUIRED ACCURACY ...'
         exit
      end if
-     STOP
   END DO
   close(17)
 end subroutine SCF_GFs

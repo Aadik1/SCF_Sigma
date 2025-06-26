@@ -1,13 +1,16 @@
 subroutine input_SOC()
   use GreensFunctions 
   implicit none
-  
+
   open(22, file='inputSOC.dat', status='old')
-  read(22, *) Gamma0, V, Volt_range, mu, delta, order, pulay
-  read(22, *)  hel_radius, hel_length, N_ions, N_turns, hand 
-  close(22)
+  read(22, *) T, V, mu, Volt_range, Gamma0
+  read(22,*) order
+  read(22,*) dw,up,delta
+  read(22,*) pulay
+  read(22, *) hel_radius, hel_length, N_ions, N_turns, hand
+  close(22) 
   
-  T = 300.d0
+  
   lamb = 0.d0 !Gamma0/2.d0
   t_hop = 2.d0*Gamma0
   E_CC = mu*Gamma0*2.d0

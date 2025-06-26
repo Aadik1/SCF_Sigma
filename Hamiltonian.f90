@@ -41,8 +41,8 @@ contains
        ii=2*i
 
 !..................diagonal        
-       H(ii-1,ii-1)=E_CC
-       H(ii,ii)    =E_CC
+       H(ii-1,ii-1)= E_CC
+       H(ii,ii)    = E_CC
        
 !.................. hopping       
        if(i.le.Nat-1) then

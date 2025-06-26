@@ -11,7 +11,7 @@ program StypeJunction_Spin
   open(22, file='runtime_datasheet.dat', status='unknown')  
   call SYSTEM_CLOCK(COUNT_RATE=rate, COUNT_MAX=max_count)
   if (rate .eq. 0) then
-     print *, "Error: SYSTEM_CLOCK not supported or rate is 0."
+     write(*,*) "Error: SYSTEM_CLOCK not supported or rate is 0."
      stop
   end if
   call SYSTEM_CLOCK(COUNT=start_tick)
@@ -25,9 +25,9 @@ program StypeJunction_Spin
   allocate(GammaL(Natoms, Natoms)); allocate(GammaR(Natoms, Natoms))
   call SOC_Hamiltonian()
    
-  GammaL = (0.d0, 0.d0); GammaL(1,1) = 1.d0;  GammaL(2,2) = 0.d0
+  GammaL = (0.d0, 0.d0); GammaL(1,1) = 1.d0;  GammaL(2,2) = 1.d0
   
-  GammaR = (0.d0, 0.d0); GammaR(Natoms-1, Natoms-1) = 0.d0;  GammaR(Natoms, Natoms) = 1.d0
+  GammaR = (0.d0, 0.d0); GammaR(Natoms-1, Natoms-1) = 1.d0;  GammaR(Natoms, Natoms) = 1.d0
   
   !......................Defines the level width funcitons for L,R-leads to central region, i.e. the respective couplings
   
@@ -44,11 +44,10 @@ program StypeJunction_Spin
   allocate(Ev(Natoms))
   
   Eigenvec = H
-  call complex_eigen_symm_martix(Eigenvec, Natoms, Ev) !...need to use correct subroutine for complex Hamiltonian
+  call complex_eigen_symm_martix(Eigenvec, Natoms, Ev)
   
-  w_init = Ev(1)-12.d0; w_fin = Ev(Natoms)+10.d0
+  w_init = Ev(1)-dw; w_fin = Ev(Natoms)+up
   N_of_w = (w_fin - w_init)/delta ; write(*,*) 'N_of_w:', N_of_w, 'w_fin:', w_fin, 'w_init:', w_init
-  write(*,*) 'Natoms:', Natoms
   
   write(3,*) 'Temp:', T, 'delta:', delta, 'Hamiltonian Dimension:', Natoms, '# of omegas:', N_of_w
   
