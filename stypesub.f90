@@ -3,7 +3,8 @@ subroutine input_SOC()
   implicit none
   
   open(22, file='inputSOC.dat', status='old')
-  read(22, *) Gamma0, V, Volt_range, mu, delta, order, pulay 
+  read(22, *) Gamma0, V, Volt_range, mu, delta, order, pulay
+  read(22, *)  hel_radius, hel_length, N_ions, N_turns, hand 
   close(22)
   
   T = 300.d0
@@ -12,11 +13,12 @@ subroutine input_SOC()
   E_CC = mu*Gamma0*2.d0
   beta = 1.d0/(kb * T)
   
-  open(21, file='helix_data.dat', status='old')
-  read(21, *)  hel_radius, hel_length, N_ions, N_turns
-  close(21)
-  
   Natoms = 2*N_ions*N_turns !...# of ions per turn of the helix  and the # of turns multiplied by 2
+  
+  write(*,*) 'T:', T, 'V:', V, 'mu:', mu, 'Volt_range:', Volt_range, gamma0
+  write(*,*) 'Order:', order, 'Natoms:', Natoms
+  write(*,*) 'delta:', delta
+  write(*,*) 'pulay:', pulay
 end subroutine input_SOC
 
 subroutine PrintFunctions()

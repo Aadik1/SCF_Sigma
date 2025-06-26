@@ -106,21 +106,6 @@ end subroutine G0_L_G
 !========Calcualtions needed for full GFs=============
 !===================================================== 
 
-integer function w_grid(w)
-  implicit none
-  integer :: i
-  real*8 :: w
-  
-  i = nint((w-omega(1))/delta) + 1
-  
-  if(i+1 .lt. 1) then
-     i = 1
-  else if (i+1 .gt. N_of_w) then
-     i = N_of_w
-  end if
-  w_grid=i
-end function w_grid
-
 subroutine first_order_sigma(Sigma1)
   implicit none
   integer :: i, s, s1 
@@ -141,6 +126,11 @@ subroutine first_order_sigma(Sigma1)
      end do
  
   end do
+  
+  write(3,*) '-----------Hartree-Fock------------'
+  write(3,*) Sigma1(1,1), Sigma1(2,2), Sigma1(3,3)
+  write(3,*) '-----------------------------------'
+  
 end subroutine first_order_sigma
 
 !......................Calculation of Omega terms for the self-energies, Eq. (9) in CHE
@@ -157,28 +147,32 @@ complex*16 function Omega_r(i, j, sp, sp1, iw)
      do k_2 = 1, N_of_w
         k_3 = iw- k_1 +k_2
 
-        do s = 0, 1 !...Sum over orbitals
-           do s1 = 0, 1
-              m = i+s
-              n = j+s1
-              
-              !.....both second order diagram contributions 
-              Omr = Omr - GF0%r(ii,m,k_1)*GF0%L(m,n,k_2)*GF0%L(n,jj,k_3) &
-                   - GF0%L(ii,m,k_1)*GF0%a(m,n,k_2)*GF0%L(n,jj,k_3) &
-                   - GF0%L(ii,m,k_1)*GF0%G(m,n,k_2)*GF0%a(n,jj,k_3) & !..Eq. (24) in CHE
-                   
-                   + GF0%r(m,n,k_1)*GF0%L(n,m,k_2)*GF0%L(ii,jj,k_3) & 
-                   + GF0%L(m,n,k_1)*GF0%a(n,m,k_2)*GF0%L(ii,jj,k_3) & !... Eq. (21) in CHe
-                   + GF0%L(m,n,k_1)*GF0%G(n,m,k_2)*GF0%a(ii,jj,k_3)
-              
+        if (k_3 .ge. 1 .and. k_3 .le. N_of_w) then        
+           do s = 0, 1 !...Sum over orbitals
+              do s1 = 0, 1
+                 m = i+s
+                 n = j+s1
+                 
+                 !.....both second order diagram contributions 
+                 Omr = Omr - GF0%r(ii,m,k_1)*GF0%L(m,n,k_2)*GF0%L(n,jj,k_3) &
+                      - GF0%L(ii,m,k_1)*GF0%a(m,n,k_2)*GF0%L(n,jj,k_3) &
+                      - GF0%L(ii,m,k_1)*GF0%G(m,n,k_2)*GF0%a(n,jj,k_3) & !..Eq. (24) in CHE
+                      
+                      + GF0%r(m,n,k_1)*GF0%L(n,m,k_2)*GF0%L(ii,jj,k_3) & 
+                      + GF0%L(m,n,k_1)*GF0%a(n,m,k_2)*GF0%L(ii,jj,k_3) & !... Eq. (21) in CHe
+                      + GF0%L(m,n,k_1)*GF0%G(n,m,k_2)*GF0%a(ii,jj,k_3)
+                 
+              end do
            end do
-        end do
-        
+        end if
      end do
   end do
   
   pp = (delta/2.d0*pi)
   Omega_R = Omr*pp*pp
+  write(3,*) '-----------Omega_R------------'
+  write(3,*) Omega_R
+  write(3,*) '------------------------------'
 end function Omega_r
 
 complex*16 function int_SigL(i,j,sp,sp1,iw) !... interaction contributions of Eq. (3) and (4) in CHE
@@ -193,21 +187,26 @@ complex*16 function int_SigL(i,j,sp,sp1,iw) !... interaction contributions of Eq
      do k2 = 1, N_of_w
         k3 = iw- k1 +k2
         
-        do s = 0, 1 !...Sum over orbitals
-           do s1 = 0, 1
-              m = i+s
-              n= j+s1
-              
-              SigL = SigL + GF0%L(m,n,k1)*GF0%G(n,m,k2)*GF0%L(ii,jj,k3) &
-                          - GF0%L(ii,m,k1)*GF0%G(m,n,k2)*GF0%L(n,jj,k3) 
-              
+        if (k3 .ge. 1 .and. k3 .le. N_of_w) then
+           do s = 0, 1 !...Sum over orbitals
+              do s1 = 0, 1
+                 m = i+s
+                 n= j+s1
+                 
+                 SigL = SigL + GF0%L(m,n,k1)*GF0%G(n,m,k2)*GF0%L(ii,jj,k3) &
+                      - GF0%L(ii,m,k1)*GF0%G(m,n,k2)*GF0%L(n,jj,k3) 
+                 
+              end do
            end do
-        end do
-        
+        end if
      end do
   end do
+  
   SigL = SigL*(delta*delta/4.d0*pi*pi)
   int_SigL = SigL
+  write(3,*) '-----------SigL------------'
+  write(3,*) SigL
+  write(3,*) '---------------------------'
 end function int_SigL
 
 !=====================================================
@@ -356,6 +355,23 @@ subroutine SCF_GFs(Volt)
         call G_full(iw, Volt)
      end do
      !$OMP END PARALLEL DO
+     
+     write(3,*) '-----------G0 Retarded PreSCF------------'
+     write(3,*) GF0%r(1,1,1), GF0%r(2,2,1), GF0%r(3,3,1)
+     write(3,*) '-----------------------------------------'
+     
+     write(3,*) '---------G0 Lesser PreSCF------------'
+     write(3,*) GF0%L(1,1,1), GF0%L(2,2,1), GF0%L(3,3,1)
+     write(3,*) '-------------------------------------'
+     
+     write(3,*) '-----------GF Retarded PreSCF------------'
+     write(3,*) GFf%r(1,1,1), GFf%r(2,2,1), GFf%r(3,3,1)
+     write(3,*) '-----------------------------------------'
+     
+     write(3,*) '-----------GF Lesser PreSCF--------------'
+     write(3,*) GFf%L(1,1,1), GFf%L(2,2,1), GFf%L(3,3,1)
+     write(3,*) '-----------------------------------------'
+     
      et = OMP_GET_WTIME()
      write(22,'(A,F10.8,A,A,A,I4)') 'G_full w-loop runtime:', (et-st), 'seconds', '   ', 'Iteration:', iteration
      
@@ -367,7 +383,6 @@ subroutine SCF_GFs(Volt)
      
      !..... calculation of the error
 
-     err = 0.d0
      !$OMP PARALLEL DO PRIVATE(iw, i, diff) REDUCTION(+:err)
      do iw = 1, N_of_w
         do i=1,Natoms
@@ -379,11 +394,22 @@ subroutine SCF_GFs(Volt)
      
      write(*,*) 'err = ',sqrt(err)
      !     write(*,*) iteration, sqrt(err)
-     
+
+     !$OMP CRITICAL
      GF0%R = pulay*GFf%R + (1.0d0-pulay)*GF0%R
      GF0%A = pulay*GFf%A + (1.0d0-pulay)*GF0%A
      GF0%L = pulay*GFf%L + (1.0d0-pulay)*GF0%L
      GF0%G = GF0%L + GF0%R - GF0%A
+     !$OMP END CRITICAL
+
+     write(3,*) '-----------G0 Retarded Mixing------------'
+     write(3,*) GF0%r(1,1,1), GF0%r(2,2,1), GF0%r(3,3,1)
+     write(3,*) '-----------------------------------------'
+     
+     write(3,*) '---------G0 Lesser Mixing------------'
+     write(3,*) GF0%L(1,1,1), GF0%L(2,2,1), GF0%L(3,3,1)
+     write(3,*) '-------------------------------------'
+     
 !... printing the spectral function
 
      call print_sf(iteration)  
@@ -391,6 +417,7 @@ subroutine SCF_GFs(Volt)
         write(*,*)'... REACHED REQUIRED ACCURACY ...'
         exit
      end if
+     STOP
   END DO
   close(17)
 end subroutine SCF_GFs

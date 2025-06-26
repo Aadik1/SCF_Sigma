@@ -5,7 +5,7 @@ module DefineHamiltonian
   real*8, dimension(:,:) :: C(3,3)
   real*8, dimension(3) :: Rij, w0
   real*8 :: T, mu, beta, V, delta, w_init, w_fin
-  real*8 :: E_CC, t_hop, hel_radius, hel_length, lamb, Gamma0
+  real*8 :: E_CC, t_hop, hel_radius, hel_length, lamb, Gamma0, hand
 
   real*8, parameter :: hbar = 1.d0 !6.582119569e-16 !ev s
   real*8, parameter :: kb = 8.6173303e-5 !ev/K
@@ -17,13 +17,13 @@ module DefineHamiltonian
 
 contains 
   
-  subroutine helix_coordinate(r, i) !....specific to Right Handed helix
+  subroutine helix_coordinate(r, i) !....hand chooses helicity- RH helix = 1, LH helix = -1
     implicit none
     integer :: i
     real*8, dimension(3) :: r
     r = 0.d0
-    r(1) = hel_radius*cos((i-1)*2*pi/N_ions)
-    r(2) = hel_radius*sin((i-1)*2*pi/N_ions)
+    r(1) = hel_radius*cos(hand*(i-1)*2*pi/N_ions)
+    r(2) = hel_radius*sin(hand*(i-1)*2*pi/N_ions)
     r(3) = hel_length*(i-1)/(N_turns*(N_ions - 1))
   end subroutine helix_coordinate
   
