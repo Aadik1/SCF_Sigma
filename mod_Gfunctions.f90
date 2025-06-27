@@ -57,9 +57,9 @@ subroutine GL_of_0()
   end do
   
   write(3,*) '----------------G_nil-------------------'
-  write(3,*) G_nil(1,1), G_nil(2,2), G_nil(3,3)
+  write(3,*) G_nil(1,1), G_nil(3,3), G_nil(6,6)
   write(3,*) '----------------G_nil-------------------'
-  
+
 end subroutine GL_of_0
 
 subroutine G0_R_A()
@@ -81,6 +81,12 @@ subroutine G0_R_A()
        GF0%r(:,:,j) = work1
        GF0%a(:,:,j) = work2
     end do
+
+    
+     write(3,*) '-----------G0 Retarded Subroutine------------'
+     write(3,*) GF0%r(1,1,1), GF0%r(3,3,1), GF0%r(6,6,1)
+     write(3,*) '-----------------------------------------'
+     
 end subroutine G0_R_A
 
 subroutine G0_L_G(Volt)
@@ -100,6 +106,11 @@ subroutine G0_L_G(Volt)
        GF0%L(:,:,j) = work3
 !       GF0%G(:,:,j) = work4
     end do
+
+     write(3,*) '---------G0 Lesser Subroutine------------'
+     write(3,*) GF0%L(1,1,1), GF0%L(3,3,1), GF0%L(6,6,1)
+     write(3,*) '-------------------------------------'
+    
     GF0%G =  GF0%L + GF0%R - GF0%A
 end subroutine G0_L_G
 
@@ -180,6 +191,7 @@ complex*16 function int_SigL(i,j,sp,sp1,iw) !... interaction contributions of Eq
   implicit none
   integer :: i, j, k1, k2, k3, iw, m, n, sp, sp1, s, s1, ii, jj
   complex*16 ::  SigL
+  real*8 :: pp
 
   ii = i +sp; jj= j + sp1
 
@@ -202,8 +214,8 @@ complex*16 function int_SigL(i,j,sp,sp1,iw) !... interaction contributions of Eq
         end if
      end do
   end do
-  
-  SigL = SigL*(delta*delta/4.d0*pi*pi)
+  pp = (delta/2.d0*pi)
+  SigL = SigL*pp*pp
   int_SigL = SigL
   !write(3,*) '-----------SigL------------'
   !write(3,*) SigL
@@ -238,7 +250,7 @@ subroutine G_full(iw, Volt) !... Full Greens function, leaves Retarded and Advan
                  ii = i +sp; jj= j + sp1
                  
                  OmR = Omega_r(i,j,sp,sp1,iw)
-                 SigmaR(ii,jj) = SigmaR(ii,jj) + Sigma1(ii,jj) + (Hub(j)*Hub(i)*OmR)*hbar**2 !(i*hbar)**2 gives +ve
+                 SigmaR(ii,jj) = SigmaR(ii,jj) + Sigma1(ii,jj) + (Hub(j)*Hub(i)*OmR)*hbar**2 
               end do
            end do
            
@@ -254,10 +266,10 @@ subroutine G_full(iw, Volt) !... Full Greens function, leaves Retarded and Advan
                  ii = i +sp; jj= j + sp1
                  
                  SigL = int_SigL(i,j, sp, sp1, iw)
-                 SigmaL(ii,jj) = SigmaL(ii,jj) + Hub(i)*Hub(j)*SigL*hbar**2
+                 SigmaL(ii,jj) = SigmaL(ii,jj) + Hub(j)*Hub(i)*SigL*hbar**2
               end do
            end do
-           
+          
         end do
      end do
   end if
@@ -273,11 +285,12 @@ subroutine G_full(iw, Volt) !... Full Greens function, leaves Retarded and Advan
 
   call Inverse_complex(Natoms, w1, info)
   call Hermitian_Conjg(w1, Natoms, w2) 
+
+  GFf%R(:,:,iw) = w1; GFf%A(:,:,iw) = w2 
   
   !.....Embedding contribution of Sigma
   SigmaL = SigmaL + im*(fermi_dist(w, Volt)*GammaL + fermi_dist(w, 0.d0)*GammaR)/hbar    
 
-  GFf%R(:,:,iw) = w1; GFf%A(:,:,iw) = w2 
   !.............full GL and GG, Eq. (16) and (17)
   GFf%L(:,:,iw) = matmul(matmul(w1, SigmaL), w2) !.. GL = Gr * SigmaL * Ga
   GFf%G(:,:,iw) = GFf%L(:,:,iw) +  GFf%R(:,:,iw) -  GFf%A(:,:,iw)
@@ -357,20 +370,12 @@ subroutine SCF_GFs(Volt)
      end do
      !$OMP END PARALLEL DO
      
-     write(3,*) '-----------G0 Retarded PreSCF------------'
-     write(3,*) GF0%r(1,1,1), GF0%r(2,2,1), GF0%r(3,3,1)
-     write(3,*) '-----------------------------------------'
-     
-     write(3,*) '---------G0 Lesser PreSCF------------'
-     write(3,*) GF0%L(1,1,1), GF0%L(2,2,1), GF0%L(3,3,1)
-     write(3,*) '-------------------------------------'
-     
      write(3,*) '-----------GF Retarded PreSCF------------'
-     write(3,*) GFf%r(1,1,1), GFf%r(2,2,1), GFf%r(3,3,1)
+     write(3,*) GFf%r(1,1,1), GFf%r(3,3,1), GFf%r(6,6,1)
      write(3,*) '-----------------------------------------'
      
      write(3,*) '-----------GF Lesser PreSCF--------------'
-     write(3,*) GFf%L(1,1,1), GFf%L(2,2,1), GFf%L(3,3,1)
+     write(3,*) GFf%L(1,1,1), GFf%L(3,3,1), GFf%L(6,6,1)
      write(3,*) '-----------------------------------------'
      
      et = OMP_GET_WTIME()
@@ -404,11 +409,11 @@ subroutine SCF_GFs(Volt)
      !$OMP END CRITICAL
 
      write(3,*) '-----------G0 Retarded Mixing------------'
-     write(3,*) GF0%r(1,1,1), GF0%r(2,2,1), GF0%r(3,3,1)
+     write(3,*) GF0%r(1,1,1), GF0%r(3,3,1), GF0%r(6,6,1)
      write(3,*) '-----------------------------------------'
      
      write(3,*) '---------G0 Lesser Mixing------------'
-     write(3,*) GF0%L(1,1,1), GF0%L(2,2,1), GF0%L(3,3,1)
+     write(3,*) GF0%L(1,1,1), GF0%L(3,3,1), GF0%L(6,6,1)
      write(3,*) '-------------------------------------'
      
 !... printing the spectral function
@@ -418,6 +423,7 @@ subroutine SCF_GFs(Volt)
         write(*,*)'... REACHED REQUIRED ACCURACY ...'
         exit
      end if
+     STOP
   END DO
   close(17)
 end subroutine SCF_GFs
