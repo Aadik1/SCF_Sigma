@@ -47,7 +47,7 @@
     
     c(1) = a(2)*b(3) - a(3)*b(2)
     c(2) = a(3)*b(1) - a(1)*b(3)
-    c(3) = a(1)*b(2) - b(2)*a(1)
+    c(3) = a(1)*b(2) - b(1)*a(2)
   end subroutine vec_cross_product
 
  real*8  function mod_vec(r)
@@ -80,8 +80,7 @@
     implicit none 
     integer :: n,i,j
     complex*16, dimension(:,:) :: A(n,n), B(n,n)
-    complex*16 :: s
-    real*8 :: trace
+    complex*16 :: s, trace
     
     s = 0.d0
     do i=1,n
