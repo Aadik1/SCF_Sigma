@@ -6,6 +6,7 @@ program StypeJunction_Spin
   real*8 :: V1, J_up, J_down, total_time
   integer ::  k, i, start_tick, end_tick, rate, max_count
   character(len=30) :: vfn
+  logical :: first
   
  !....creates runtime datasheet 
   open(22, file='runtime_datasheet.dat', status='unknown')  
@@ -37,6 +38,8 @@ program StypeJunction_Spin
      Hub(i) = Gamma0/10.d0 !>...read(11, *) Hub(i)
   end do
   close(11)
+
+  print *, 'HUBBARD:', Hub
   
   !.......................Finds the eigenvalues of the Central Hamiltonian and uses it to define the time-independent G(0)
   
@@ -74,7 +77,7 @@ program StypeJunction_Spin
 !  allocate(SigmaR(Natoms, Natoms))
   
 !...............calculate GR and GA for all voltages on the omega grid
-  allocate(work1(Natoms, Natoms)); allocate(work2(Natoms, Natoms)); allocate(work3(Natoms, Natoms))
+  allocate(work1(Natoms, Natoms)); allocate(work2(Natoms, Natoms)); allocate(work3(Natoms, Natoms)); allocate(work4(Natoms, Natoms))
   
   !.......................Calculates and plots Voltage vs Current curve
   !...For now, sticking to a single voltage to run pulay
@@ -83,11 +86,17 @@ program StypeJunction_Spin
 
   write(vfn,'(i0)') order
   open(30, file='Volt_Current_'//trim(vfn)//'.dat', status='unknown')
-  
+
   print *, 'Pre-voltage' 
+  first=.true.
   do k = 0, Volt_range
      V1 = V + k*0.05
-     call SCF_GFs(V1)
+
+     call SCF_GFs(V1, first)
+
+     GF0%r=GFf%r ; GF0%a=GFf%a ; GF0%L=GFf%L ; GF0%G=GFf%G
+     if(first) first=.false.
+     
      call Current(V1, J_up, J_down)
      write(30, *) V1, J_up, J_down
      print *, 'Progress:', k/(Volt_range*0.01), '%', J_up, J_down
@@ -107,7 +116,7 @@ program StypeJunction_Spin
   
   deallocate(GFf%L, GFf%G,GFf%R, GFf%A)
   deallocate(GF0%r, GF0%a, GF0%L, GF0%G) 
-  deallocate(work1, work2, work3)
+  deallocate(work1, work2, work3, work4)
   deallocate(H, Hub, omega)
   !deallocate(SigmaL, Sigma1, SigmaR);
   deallocate(GammaL, GammaR, G_nil)

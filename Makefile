@@ -5,3 +5,4 @@ all:
 clear: 
 
 	rm -f sf* *.o *.mod *.out *~ iteration* fort* err* Volt_Current* Print.dat SpinJunction.*
+	clear

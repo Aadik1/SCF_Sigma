@@ -55,11 +55,6 @@ subroutine GL_of_0()
      end do
      G_nil(i,i)=s*pp
   end do
-  
-  write(3,*) '----------------G_nil-------------------'
-  write(3,*) G_nil(1,1), G_nil(3,3), G_nil(6,6)
-  write(3,*) '----------------G_nil-------------------'
-
 end subroutine GL_of_0
 
 subroutine G0_R_A()
@@ -82,36 +77,25 @@ subroutine G0_R_A()
        GF0%a(:,:,j) = work2
     end do
 
-    
-     write(3,*) '-----------G0 Retarded Subroutine------------'
-     write(3,*) GF0%r(1,1,1), GF0%r(3,3,1), GF0%r(6,6,1)
-     write(3,*) '-----------------------------------------'
-     
 end subroutine G0_R_A
 
 subroutine G0_L_G(Volt)
   !............non-interacting Greens functions: G> and G< for all omega on the grid, Eq. (16) and (17) in CHE
   implicit none
   real*8 :: Volt, w
-  integer :: j
+  integer :: j, i
   
-    work1 = (0.d0, 0.d0) ; work2 =(0.d0, 0.d0) ; work3 = (0.d0, 0.d0)
-!     work4 = (0.d0, 0.d0)
+    work1 = (0.d0, 0.d0) ; work2 =(0.d0, 0.d0) ; work3 = (0.d0, 0.d0);  work4 = (0.d0, 0.d0)
     do j = 1 , N_of_w
        w = omega(j)
        work1 = GF0%r(:,:,j) 
        work2 = GF0%a(:,:,j) 
        work3 = matmul(matmul(work1, im*(fermi_dist(w, Volt)*GammaL + fermi_dist(w, 0.d0)*GammaR)), work2) 
-!       work4 = matmul(matmul(work1, im*((fermi_dist(w, Volt)-1.d0)*GammaL + (fermi_dist(w, 0.d0)-1.d0)*GammaR)), work2)
+       work4 = matmul(matmul(work1, im*((fermi_dist(w, Volt)-1.d0)*GammaL + (fermi_dist(w, 0.d0)-1.d0)*GammaR)), work2)
        GF0%L(:,:,j) = work3
-!       GF0%G(:,:,j) = work4
+       GF0%G(:,:,j) = work4
     end do
 
-     write(3,*) '---------G0 Lesser Subroutine------------'
-     write(3,*) GF0%L(1,1,1), GF0%L(3,3,1), GF0%L(6,6,1)
-     write(3,*) '-------------------------------------'
-    
-    GF0%G =  GF0%L + GF0%R - GF0%A
 end subroutine G0_L_G
 
 !=====================================================
@@ -164,8 +148,8 @@ complex*16 function Omega_r(i, j, sp, sp1, iw)
               do s1 = 0, 1
                  m = i+s
                  n = j+s1
-                 
-                 !.....both second order diagram contributions 
+                
+                    !.....both second order diagram contributions 
                  Omr = Omr - GF0%r(ii,m,k_1)*GF0%L(m,n,k_2)*GF0%L(n,jj,k_3) &
                       - GF0%L(ii,m,k_1)*GF0%a(m,n,k_2)*GF0%L(n,jj,k_3) &
                       - GF0%L(ii,m,k_1)*GF0%G(m,n,k_2)*GF0%a(n,jj,k_3) & !..Eq. (24) in CHE
@@ -173,18 +157,15 @@ complex*16 function Omega_r(i, j, sp, sp1, iw)
                       + GF0%r(m,n,k_1)*GF0%L(n,m,k_2)*GF0%L(ii,jj,k_3) & 
                       + GF0%L(m,n,k_1)*GF0%a(n,m,k_2)*GF0%L(ii,jj,k_3) & !... Eq. (21) in CHe
                       + GF0%L(m,n,k_1)*GF0%G(n,m,k_2)*GF0%a(ii,jj,k_3)
-                 
               end do
            end do
         end if
+        
      end do
   end do
   
   pp = (delta/2.d0*pi)
   Omega_R = Omr*pp*pp
- ! write(3,*) '-----------Omega_R------------'
- ! write(3,*) Omega_R
- ! write(3,*) '------------------------------'
 end function Omega_r
 
 complex*16 function int_SigL(i,j,sp,sp1,iw) !... interaction contributions of Eq. (23) + Eq. (26) 
@@ -201,10 +182,10 @@ complex*16 function int_SigL(i,j,sp,sp1,iw) !... interaction contributions of Eq
         k3 = iw- k1 +k2
         
         if (k3 .ge. 1 .and. k3 .le. N_of_w) then
-           do s = 0, 1 !...Sum over orbitals
+           do s = 0, 1 !...Sum over spin
               do s1 = 0, 1
                  m = i+s
-                 n= j+s1
+                 n = j+s1
                  
                  SigL = SigL + GF0%L(m,n,k1)*GF0%G(n,m,k2)*GF0%L(ii,jj,k3) &
                       - GF0%L(ii,m,k1)*GF0%G(m,n,k2)*GF0%L(n,jj,k3) 
@@ -212,15 +193,44 @@ complex*16 function int_SigL(i,j,sp,sp1,iw) !... interaction contributions of Eq
               end do
            end do
         end if
+        
      end do
   end do
   pp = (delta/2.d0*pi)
-  SigL = SigL*pp*pp
-  int_SigL = SigL
-  !write(3,*) '-----------SigL------------'
-  !write(3,*) SigL
-  !write(3,*) '---------------------------'
+  int_SigL = SigL*pp
 end function int_SigL
+
+complex*16 function int_SigG(i,j,sp,sp1,iw) !... interaction contributions of Eq. (23) + Eq. (26) 
+  implicit none
+  integer :: i, j, k1, k2, k3, iw, m, n, sp, sp1, s, s1, ii, jj
+  complex*16 ::  SigG
+  real*8 :: pp
+
+  ii = i +sp; jj= j + sp1
+
+  SigG=(0.0d0, 0.0d0)
+  do k1 = 1, N_of_w
+     do k2 = 1, N_of_w
+        k3 = iw- k1 +k2
+        
+        if (k3 .ge. 1 .and. k3 .le. N_of_w) then
+           do s = 0, 1 !...Sum over spin
+              do s1 = 0, 1
+                 m = i+s
+                 n = j+s1
+                 
+                 SigG = SigG + GF0%G(m,n,k1)*GF0%L(n,m,k2)*GF0%G(ii,jj,k3) &
+                      - GF0%G(ii,m,k1)*GF0%L(m,n,k2)*GF0%G(n,jj,k3) 
+                 
+              end do
+           end do
+        end if
+     end do
+  end do
+  pp = (delta/2.d0*pi)
+
+  int_SigG = SigG*pp
+end function int_SigG
 
 !=====================================================
 !================== Full GFs =========================
@@ -230,11 +240,11 @@ subroutine G_full(iw, Volt) !... Full Greens function, leaves Retarded and Advan
   implicit none
   integer :: i, j, iw, sp, sp1, ii, jj
   real*8 :: Volt, w 
-  complex*16 :: OmR, SigL
-  complex*16, dimension(Natoms,Natoms) ::  SigmaL, Sigma1, SigmaR, w1, w2
+  complex*16 :: OmR, SigL, SigG
+  complex*16, dimension(Natoms,Natoms) ::  SigmaL, Sigma1, SigmaR, SigmaG,  w1, w2
   
   !............full SigmaR due to interactions Eq. (7)
-  SigmaR = (0.d0, 0.d0); SigmaL = (0.d0, 0.d0)
+  SigmaR = (0.d0, 0.d0); SigmaL = (0.d0, 0.d0); SigmaG = (0.d0, 0.d0)
   
   if (order .eq. 1) then
      call first_order_sigma(Sigma1)
@@ -250,12 +260,14 @@ subroutine G_full(iw, Volt) !... Full Greens function, leaves Retarded and Advan
                  ii = i +sp; jj= j + sp1
                  
                  OmR = Omega_r(i,j,sp,sp1,iw)
-                 SigmaR(ii,jj) = SigmaR(ii,jj) + Sigma1(ii,jj) + (Hub(j)*Hub(i)*OmR)*hbar**2 
+                 
+                 SigmaR(ii,jj) = SigmaR(ii,jj)+ Sigma1(ii,jj)  + (Hub(j)*Hub(i)*OmR)*hbar**2 
               end do
            end do
            
         end do
      end do
+
      !..............full SigmaL, Eq. (3) and (4)     
      !.....Interaction contribution of both Sigmas     
      do i = 1, Natoms, 2
@@ -267,6 +279,9 @@ subroutine G_full(iw, Volt) !... Full Greens function, leaves Retarded and Advan
                  
                  SigL = int_SigL(i,j, sp, sp1, iw)
                  SigmaL(ii,jj) = SigmaL(ii,jj) + Hub(j)*Hub(i)*SigL*hbar**2
+
+                 SigG = int_SigG(i,j, sp, sp1, iw)
+                 SigmaG(ii,jj) = SigmaG(ii,jj) + Hub(j)*Hub(i)*SigG*hbar**2
               end do
            end do
           
@@ -289,11 +304,26 @@ subroutine G_full(iw, Volt) !... Full Greens function, leaves Retarded and Advan
   GFf%R(:,:,iw) = w1; GFf%A(:,:,iw) = w2 
   
   !.....Embedding contribution of Sigma
-  SigmaL = SigmaL + im*(fermi_dist(w, Volt)*GammaL + fermi_dist(w, 0.d0)*GammaR)/hbar    
+  SigmaL = SigmaL + im*(fermi_dist(w, Volt)*GammaL + fermi_dist(w, 0.d0)*GammaR)/hbar
+  SigmaG = SigmaG + im*((fermi_dist(w, Volt)-1.d0)*GammaL + (fermi_dist(w, 0.d0)-1.d0)*GammaR)/hbar
 
+  write(3,*) '----------------------------------------'
+  write(3,*) 'SigmaR:'
+  do i = 1, Natoms
+     write(3,*) (SigmaR(i,j), j= 1, Natoms)
+  end do
+  write(3,*) '-----------------------------------------'
+  
   !.............full GL and GG, Eq. (16) and (17)
   GFf%L(:,:,iw) = matmul(matmul(w1, SigmaL), w2) !.. GL = Gr * SigmaL * Ga
-  GFf%G(:,:,iw) = GFf%L(:,:,iw) +  GFf%R(:,:,iw) -  GFf%A(:,:,iw)
+  GFf%G(:,:,iw) = matmul(matmul(w1, SigmaG), w2) !GFf%L(:,:,iw) +  GFf%R(:,:,iw) -  GFf%A(:,:,iw)
+
+  write(3,*) '-----------GF Retarded ------------'
+  do i = 1, Natoms
+     write(3,*) (GFf%R(i,j,1), j= 1, Natoms)
+  end do
+  write(3,*) '-----------------------------------------'
+  
 end subroutine G_full
   
 !====================================================
@@ -302,11 +332,12 @@ end subroutine G_full
 
 !.............need G0f%L to calculate GL_of_0
 !.............Calculates GFs at every omega and Voltage simultaneously 
-subroutine SCF_GFs(Volt)
+subroutine SCF_GFs(Volt, first)
   implicit none
   integer :: iw, iteration,i, Vname
   real*8 :: Volt, err, diff, st, et
-  character(len=30) :: fn1 
+  character(len=30) :: fn1
+  logical :: first
 
   iteration = 0
 
@@ -351,7 +382,7 @@ subroutine SCF_GFs(Volt)
 !.......real variable interactions turns off the Interaction component of the sigmas 
 !.................full Gr and Ga, Eq. (5) and (6)
 
-     write(3,'(/a,i3,i5/)') 'iteration = ',iteration
+    ! write(3,'(/a,i3,i5/)') 'iteration = ',iteration
 
      st =0.d0; et= 0.d0
      call CPU_TIME(st)
@@ -370,13 +401,6 @@ subroutine SCF_GFs(Volt)
      end do
      !$OMP END PARALLEL DO
      
-     write(3,*) '-----------GF Retarded PreSCF------------'
-     write(3,*) GFf%r(1,1,1), GFf%r(3,3,1), GFf%r(6,6,1)
-     write(3,*) '-----------------------------------------'
-     
-     write(3,*) '-----------GF Lesser PreSCF--------------'
-     write(3,*) GFf%L(1,1,1), GFf%L(3,3,1), GFf%L(6,6,1)
-     write(3,*) '-----------------------------------------'
      
      et = OMP_GET_WTIME()
      write(22,'(A,F10.8,A,A,A,I4)') 'G_full w-loop runtime:', (et-st), 'seconds', '   ', 'Iteration:', iteration
@@ -405,17 +429,9 @@ subroutine SCF_GFs(Volt)
      GF0%R = pulay*GFf%R + (1.0d0-pulay)*GF0%R
      GF0%A = pulay*GFf%A + (1.0d0-pulay)*GF0%A
      GF0%L = pulay*GFf%L + (1.0d0-pulay)*GF0%L
-     GF0%G = GF0%L + GF0%R - GF0%A
+     GF0%G = pulay*GFf%G + (1.0d0-pulay)*GF0%G !GF0%L + GF0%R - GF0%A
      !$OMP END CRITICAL
 
-     write(3,*) '-----------G0 Retarded Mixing------------'
-     write(3,*) GF0%r(1,1,1), GF0%r(3,3,1), GF0%r(6,6,1)
-     write(3,*) '-----------------------------------------'
-     
-     write(3,*) '---------G0 Lesser Mixing------------'
-     write(3,*) GF0%L(1,1,1), GF0%L(3,3,1), GF0%L(6,6,1)
-     write(3,*) '-------------------------------------'
-     
 !... printing the spectral function
 
      call print_sf(iteration)  
@@ -423,7 +439,6 @@ subroutine SCF_GFs(Volt)
         write(*,*)'... REACHED REQUIRED ACCURACY ...'
         exit
      end if
-     STOP
   END DO
   close(17)
 end subroutine SCF_GFs
