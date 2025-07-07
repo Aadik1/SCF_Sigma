@@ -33,7 +33,228 @@ contains
     fermi_dist =  1.d0/(exp(hbar*arg) +1.d0)
   end function fermi_dist
 
+!====================================================
+!========== Self consistency field calculations =====
+!====================================================
+
+!.............need G0f%L to calculate GL_of_0
+!.............Calculates GFs at every omega and Voltage simultaneously 
+subroutine SCF_GFs(Volt, first)
+  implicit none
+  integer :: iw, iteration,i, Vname
+  real*8 :: Volt, err, diff, st, et
+  character(len=30) :: fn1
+  logical :: first
+
+  iteration = 0
+
+  write(22,*) '........SCF Calculations at Voltage:', Volt, '..........'
+  if (first) then 
+     st =0.d0; et= 0.d0
+     call CPU_TIME(st)
+     call G0_R_A()
+     call CPU_TIME(et)
+     write(22,'(A,F10.8,A,A,A,I4)') 'G0_R_A runtime:', (et-st), 'seconds', '   ', 'Iteration:', iteration
+     
+     st =0.d0; et= 0.d0
+     call CPU_TIME(st)
+     call G0_L_G(Volt)
+     call CPU_TIME(et)
+     write(22,'(A,F10.8,A,A,A,I4)') 'G0_L_G runtime:', (et-st), 'seconds', '   ', 'Iteration:', iteration
+  end if
+  print *, '>>>>>>>>>>VOLTAGE:', Volt
+
+  if(verb) then
+     call print_3matrix(0,GF0%R,'GFR')
+     call print_3matrix(0,GF0%L,'GFL')
+  end if
   
+!........ printing the spectral function at 0 iteration (embedding only) 
+!            and calculating spec(1,iw)
+
+  call print_sf(iteration)
+  
+  Vname = abs(Volt)
+  write(fn1,'(i0)') Vname
+  if (Volt .ge. 0) then 
+     open(17,file='err_V_'//trim(fn1)//'.dat',status='unknown')
+  else
+     open(17,file='err_V_n'//trim(fn1)//'.dat',status='unknown')
+  end if
+
+  DO
+     iteration = iteration + 1
+     write(*,*) '.... ITERATION = ',iteration,' ....'
+
+!.......real variable interactions turns off the Interaction component of the sigmas 
+!.................full Gr and Ga, Eq. (5) and (6)
+
+    ! write(3,'(/a,i3,i5/)') 'iteration = ',iteration
+
+     st =0.d0; et= 0.d0
+     call CPU_TIME(st)
+     call GL_of_0()
+     call CPU_TIME(et)
+     write(22,'(A,F10.8,A,A,A,I4)') 'GL_of_0 runtime:', (et-st), 'seconds', '   ','Iteration:', iteration
+     
+     st = 0.d0; et = 0.d0
+     st = OMP_GET_WTIME()
+     
+     !$OMP PARALLEL DO &
+     !$OMP& PRIVATE(iw, INFO)
+
+     do iw = 1, N_of_w
+        call G_full(iw, Volt)
+     end do
+     !$OMP END PARALLEL DO
+     
+     
+     et = OMP_GET_WTIME()
+     write(22,'(A,F10.8,A,A,A,I4)') 'G_full w-loop runtime:', (et-st), 'seconds', '   ', 'Iteration:', iteration
+     
+     
+     if(verb) then
+        call print_3matrix(iteration,GFf%R,'GFR')
+        call print_3matrix(iteration,GFf%L,'GFL')
+     end if
+     
+     !..... calculation of the error
+
+     !$OMP PARALLEL DO PRIVATE(iw, i, diff) REDUCTION(+:err)
+     do iw = 1, N_of_w
+        do i=1,Natoms
+           diff=2.d0*hbar*(AIMAG(GFf%R(i,i,iw))-AIMAG(GF0%R(i,i,iw)))
+           err=err +diff*diff
+        end do
+     end do
+     !$OMP END PARALLEL DO
+     
+     write(*,*) 'err = ',sqrt(err)
+     !     write(*,*) iteration, sqrt(err)
+
+     !$OMP CRITICAL
+     GF0%R = pulay*GFf%R + (1.0d0-pulay)*GF0%R
+     GF0%A = pulay*GFf%A + (1.0d0-pulay)*GF0%A
+     GF0%L = pulay*GFf%L + (1.0d0-pulay)*GF0%L
+     GF0%G = pulay*GFf%G + (1.0d0-pulay)*GF0%G !GF0%L + GF0%R - GF0%A
+     !$OMP END CRITICAL
+
+!... printing the spectral function
+
+     call print_sf(iteration)  
+     if (sqrt(err) .lt. epsilon .or. order .eq. 0) then
+        write(*,*)'... REACHED REQUIRED ACCURACY ...'
+        exit
+     end if
+  END DO
+  close(17)
+end subroutine SCF_GFs
+
+
+!=====================================================
+!================== Full GFs =========================
+!===================================================== 
+
+subroutine G_full(iw, Volt) !... Full Greens function, leaves Retarded and Advanced in the work arrays, application of Eq. (16) and (17), but with the full Sigmas, Eq. (3), (7) and (8) in CHE
+  implicit none
+  integer :: i, j, iw, sp, sp1, ii, jj
+  real*8 :: Volt, w 
+  complex*16 :: OmR, SigL, SigG
+  complex*16, dimension(Natoms,Natoms) ::  SigmaL, Sigma1, SigmaR, SigmaG,  w1, w2
+  
+  !............full SigmaR due to interactions Eq. (7)
+  SigmaR = (0.d0, 0.d0); SigmaL = (0.d0, 0.d0); SigmaG = (0.d0, 0.d0)
+  
+  if (order .eq. 1) then
+     call first_order_sigma(Sigma1)
+     SigmaR = Sigma1
+  else if (order .eq. 2) then
+     call first_order_sigma(Sigma1)
+
+     do i = 1, Natoms, 2
+        do j = 1, Natoms, 2
+           
+           do sp = 0, 1
+              do sp1 = 0, 1
+                 ii = i +sp; jj= j + sp1
+                 
+                 OmR = Omega_r(i,j,sp,sp1,iw)
+                 
+                 SigmaR(ii,jj) = SigmaR(ii,jj)+ Sigma1(ii,jj)  + (Hub(j)*Hub(i)*OmR)*hbar**2 
+              end do
+           end do
+           
+        end do
+     end do
+
+     !..............full SigmaL, Eq. (3) and (4)     
+     !.....Interaction contribution of both Sigmas     
+     do i = 1, Natoms, 2
+        do j = 1, Natoms, 2
+
+           do sp = 0, 1
+              do sp1 = 0, 1
+                 ii = i +sp; jj= j + sp1
+                 
+                 SigL = int_SigL(i,j, sp, sp1, iw)
+                 SigmaL(ii,jj) = SigmaL(ii,jj) + Hub(j)*Hub(i)*SigL*hbar**2
+
+                 SigG = int_SigG(i,j, sp, sp1, iw)
+                 SigmaG(ii,jj) = SigmaG(ii,jj) + Hub(j)*Hub(i)*SigG*hbar**2
+              end do
+           end do
+          
+        end do
+     end do
+  end if
+  
+  !............full Gr and Ga, Eq. (5) and (6)
+  
+  w = omega(iw)
+  w1 = -H + 0.5d0*(im/hbar)*(GammaL + GammaR) - SigmaR    
+
+  do i = 1 , Natoms
+     w1(i,i) = w1(i,i) + hbar*(w +im*0.01)
+  end do
+
+  call Inverse_complex(Natoms, w1, info)
+  call Hermitian_Conjg(w1, Natoms, w2) 
+
+  GFf%R(:,:,iw) = w1; GFf%A(:,:,iw) = w2 
+  
+  !.....Embedding contribution of Sigma
+  SigmaL = SigmaL + im*(fermi_dist(w, Volt)*GammaL + fermi_dist(w, 0.d0)*GammaR)/hbar
+  SigmaG = SigmaG + im*((fermi_dist(w, Volt)-1.d0)*GammaL + (fermi_dist(w, 0.d0)-1.d0)*GammaR)/hbar
+  
+  !.............full GL and GG, Eq. (16) and (17)
+  GFf%L(:,:,iw) = matmul(matmul(w1, SigmaL), w2) !.. GL = Gr * SigmaL * Ga
+ ! GFf%G(:,:,iw) = matmul(matmul(w1, SigmaG), w2) !GFf%L(:,:,iw) +  GFf%R(:,:,iw) -  GFf%A(:,:,iw)
+
+  GFf%G(:,:,iw) = GFf%L(:,:,iw) + GFf%R(:,:,iw) - GFf%A(:,:,iw)
+  
+  write(3,*) '==================with Identity================'
+  write(3,*) GF0%L(1,1,iw) + GF0%R(1,1,iw) - GF0%A(1,1,iw), GF0%L(2,2,iw) + GF0%R(2,2,iw) - GF0%A(2,2,iw), &
+       GF0%L(3,3,iw) + GF0%R(3,3,iw) - GF0%A(3,3,iw)
+  
+  
+  write(3,*) GFf%L(1,1,iw) + GFf%R(1,1,iw) - GFf%A(1,1,iw), GFf%L(2,2,iw) + GFf%R(2,2,iw) - GFf%A(2,2,iw), &
+       GFf%L(3,3,iw) + GFf%R(3,3,iw) - GFf%A(3,3,iw) 
+  
+  write(3,*) '-----------GF Retarded ------------'
+  do i = 1, Natoms
+     write(3,*) (GFf%R(i,j,1), j= 1, Natoms)
+  end do
+  write(3,*) '-----------------------------------------'
+  write(3,*) '-----------GF Lesser ------------'
+  do i = 1, Natoms
+     write(3,*) (GFf%R(i,j,1), j= 1, Natoms)
+  end do
+  write(3,*) '-----------------------------------------'
+
+STOP
+end subroutine G_full
+
+ 
 !=====================================================
 !======== Non-interacting GFs ========================
 !=====================================================  
@@ -67,7 +288,7 @@ subroutine G0_R_A()
        work1 = -H + 0.5d0*(im/hbar) * (GammaL + GammaR) !LK <========= must be +
        w = omega(j)
        do i = 1 , Natoms
-          work1(i,i) = work1(i,i) + hbar*(w +im*0.01d0)
+          work1(i,i) = work1(i,i) + hbar*(w +im*0.01)
         end do
        
        call Inverse_complex(Natoms, work1, info)
@@ -91,9 +312,10 @@ subroutine G0_L_G(Volt)
        work1 = GF0%r(:,:,j) 
        work2 = GF0%a(:,:,j) 
        work3 = matmul(matmul(work1, im*(fermi_dist(w, Volt)*GammaL + fermi_dist(w, 0.d0)*GammaR)), work2) 
-       work4 = matmul(matmul(work1, im*((fermi_dist(w, Volt)-1.d0)*GammaL + (fermi_dist(w, 0.d0)-1.d0)*GammaR)), work2)
+       !  work4 = matmul(matmul(work1, im*((fermi_dist(w, Volt)-1.d0)*GammaL + (fermi_dist(w, 0.d0)-1.d0)*GammaR)), work2)
        GF0%L(:,:,j) = work3
-       GF0%G(:,:,j) = work4
+       !   GF0%G(:,:,j) = work4
+       GF0%G(:,:,j) =  GF0%L(:,:,j) + GF0%R(:,:,j) - GF0%A(:,:,j)
     end do
 
 end subroutine G0_L_G
@@ -232,216 +454,6 @@ complex*16 function int_SigG(i,j,sp,sp1,iw) !... interaction contributions of Eq
   int_SigG = SigG*pp
 end function int_SigG
 
-!=====================================================
-!================== Full GFs =========================
-!===================================================== 
-
-subroutine G_full(iw, Volt) !... Full Greens function, leaves Retarded and Advanced in the work arrays, application of Eq. (16) and (17), but with the full Sigmas, Eq. (3), (7) and (8) in CHE
-  implicit none
-  integer :: i, j, iw, sp, sp1, ii, jj
-  real*8 :: Volt, w 
-  complex*16 :: OmR, SigL, SigG
-  complex*16, dimension(Natoms,Natoms) ::  SigmaL, Sigma1, SigmaR, SigmaG,  w1, w2
-  
-  !............full SigmaR due to interactions Eq. (7)
-  SigmaR = (0.d0, 0.d0); SigmaL = (0.d0, 0.d0); SigmaG = (0.d0, 0.d0)
-  
-  if (order .eq. 1) then
-     call first_order_sigma(Sigma1)
-     SigmaR = Sigma1
-  else if (order .eq. 2) then
-     call first_order_sigma(Sigma1)
-
-     do i = 1, Natoms, 2
-        do j = 1, Natoms, 2
-           
-           do sp = 0, 1
-              do sp1 = 0, 1
-                 ii = i +sp; jj= j + sp1
-                 
-                 OmR = Omega_r(i,j,sp,sp1,iw)
-                 
-                 SigmaR(ii,jj) = SigmaR(ii,jj)+ Sigma1(ii,jj)  + (Hub(j)*Hub(i)*OmR)*hbar**2 
-              end do
-           end do
-           
-        end do
-     end do
-
-     !..............full SigmaL, Eq. (3) and (4)     
-     !.....Interaction contribution of both Sigmas     
-     do i = 1, Natoms, 2
-        do j = 1, Natoms, 2
-
-           do sp = 0, 1
-              do sp1 = 0, 1
-                 ii = i +sp; jj= j + sp1
-                 
-                 SigL = int_SigL(i,j, sp, sp1, iw)
-                 SigmaL(ii,jj) = SigmaL(ii,jj) + Hub(j)*Hub(i)*SigL*hbar**2
-
-                 SigG = int_SigG(i,j, sp, sp1, iw)
-                 SigmaG(ii,jj) = SigmaG(ii,jj) + Hub(j)*Hub(i)*SigG*hbar**2
-              end do
-           end do
-          
-        end do
-     end do
-  end if
-  
-  !............full Gr and Ga, Eq. (5) and (6)
-  
-  w = omega(iw)
-  w1 = -H + 0.5d0*(im/hbar)*(GammaL + GammaR) - SigmaR    
-
-  do i = 1 , Natoms
-     w1(i,i) = w1(i,i) + hbar*(w +im*0.01d0)
-  end do
-
-  call Inverse_complex(Natoms, w1, info)
-  call Hermitian_Conjg(w1, Natoms, w2) 
-
-  GFf%R(:,:,iw) = w1; GFf%A(:,:,iw) = w2 
-  
-  !.....Embedding contribution of Sigma
-  SigmaL = SigmaL + im*(fermi_dist(w, Volt)*GammaL + fermi_dist(w, 0.d0)*GammaR)/hbar
-  SigmaG = SigmaG + im*((fermi_dist(w, Volt)-1.d0)*GammaL + (fermi_dist(w, 0.d0)-1.d0)*GammaR)/hbar
-
-  write(3,*) '----------------------------------------'
-  write(3,*) 'SigmaR:'
-  do i = 1, Natoms
-     write(3,*) (SigmaR(i,j), j= 1, Natoms)
-  end do
-  write(3,*) '-----------------------------------------'
-  
-  !.............full GL and GG, Eq. (16) and (17)
-  GFf%L(:,:,iw) = matmul(matmul(w1, SigmaL), w2) !.. GL = Gr * SigmaL * Ga
-  GFf%G(:,:,iw) = matmul(matmul(w1, SigmaG), w2) !GFf%L(:,:,iw) +  GFf%R(:,:,iw) -  GFf%A(:,:,iw)
-
-  write(3,*) '-----------GF Retarded ------------'
-  do i = 1, Natoms
-     write(3,*) (GFf%R(i,j,1), j= 1, Natoms)
-  end do
-  write(3,*) '-----------------------------------------'
-  
-end subroutine G_full
-  
-!====================================================
-!========== Self consistency field calculations =====
-!====================================================
-
-!.............need G0f%L to calculate GL_of_0
-!.............Calculates GFs at every omega and Voltage simultaneously 
-subroutine SCF_GFs(Volt, first)
-  implicit none
-  integer :: iw, iteration,i, Vname
-  real*8 :: Volt, err, diff, st, et
-  character(len=30) :: fn1
-  logical :: first
-
-  iteration = 0
-
-  write(22,*) '........SCF Calculations at Voltage:', Volt, '..........'
-
-  st =0.d0; et= 0.d0
-  call CPU_TIME(st)
-  call G0_R_A()
-  call CPU_TIME(et)
-  write(22,'(A,F10.8,A,A,A,I4)') 'G0_R_A runtime:', (et-st), 'seconds', '   ', 'Iteration:', iteration
-
-  st =0.d0; et= 0.d0
-  call CPU_TIME(st)
-  call G0_L_G(Volt)
-  call CPU_TIME(et)
-  write(22,'(A,F10.8,A,A,A,I4)') 'G0_L_G runtime:', (et-st), 'seconds', '   ', 'Iteration:', iteration
-  
-  print *, '>>>>>>>>>>VOLTAGE:', Volt
-
-  if(verb) then
-     call print_3matrix(0,GF0%R,'GFR')
-     call print_3matrix(0,GF0%L,'GFL')
-  end if
-  
-!........ printing the spectral function at 0 iteration (embedding only) 
-!            and calculating spec(1,iw)
-
-  call print_sf(iteration)
-  
-  Vname = abs(Volt)
-  write(fn1,'(i0)') Vname
-  if (Volt .ge. 0) then 
-     open(17,file='err_V_'//trim(fn1)//'.dat',status='unknown')
-  else
-     open(17,file='err_V_n'//trim(fn1)//'.dat',status='unknown')
-  end if
-
-  DO
-     iteration = iteration + 1
-     write(*,*) '.... ITERATION = ',iteration,' ....'
-
-!.......real variable interactions turns off the Interaction component of the sigmas 
-!.................full Gr and Ga, Eq. (5) and (6)
-
-    ! write(3,'(/a,i3,i5/)') 'iteration = ',iteration
-
-     st =0.d0; et= 0.d0
-     call CPU_TIME(st)
-     call GL_of_0()
-     call CPU_TIME(et)
-     write(22,'(A,F10.8,A,A,A,I4)') 'GL_of_0 runtime:', (et-st), 'seconds', '   ','Iteration:', iteration
-     
-     st = 0.d0; et = 0.d0
-     st = OMP_GET_WTIME()
-     
-     !$OMP PARALLEL DO &
-     !$OMP& PRIVATE(iw, INFO)
-
-     do iw = 1, N_of_w
-        call G_full(iw, Volt)
-     end do
-     !$OMP END PARALLEL DO
-     
-     
-     et = OMP_GET_WTIME()
-     write(22,'(A,F10.8,A,A,A,I4)') 'G_full w-loop runtime:', (et-st), 'seconds', '   ', 'Iteration:', iteration
-     
-     
-     if(verb) then
-        call print_3matrix(iteration,GFf%R,'GFR')
-        call print_3matrix(iteration,GFf%L,'GFL')
-     end if
-     
-     !..... calculation of the error
-
-     !$OMP PARALLEL DO PRIVATE(iw, i, diff) REDUCTION(+:err)
-     do iw = 1, N_of_w
-        do i=1,Natoms
-           diff=2.d0*hbar*(AIMAG(GFf%R(i,i,iw))-AIMAG(GF0%R(i,i,iw)))
-           err=err +diff*diff
-        end do
-     end do
-     !$OMP END PARALLEL DO
-     
-     write(*,*) 'err = ',sqrt(err)
-     !     write(*,*) iteration, sqrt(err)
-
-     !$OMP CRITICAL
-     GF0%R = pulay*GFf%R + (1.0d0-pulay)*GF0%R
-     GF0%A = pulay*GFf%A + (1.0d0-pulay)*GF0%A
-     GF0%L = pulay*GFf%L + (1.0d0-pulay)*GF0%L
-     GF0%G = pulay*GFf%G + (1.0d0-pulay)*GF0%G !GF0%L + GF0%R - GF0%A
-     !$OMP END CRITICAL
-
-!... printing the spectral function
-
-     call print_sf(iteration)  
-     if (sqrt(err) .lt. epsilon .or. order .eq. 0) then
-        write(*,*)'... REACHED REQUIRED ACCURACY ...'
-        exit
-     end if
-  END DO
-  close(17)
-end subroutine SCF_GFs
 
 subroutine print_sf(iteration)
   integer :: iteration,n,iw,j

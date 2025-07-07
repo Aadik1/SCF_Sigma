@@ -83,17 +83,17 @@ program StypeJunction_Spin
   !...For now, sticking to a single voltage to run pulay
 
   open(3, file='Print.dat', status='unknown')
-
+  
   write(vfn,'(i0)') order
   open(30, file='Volt_Current_'//trim(vfn)//'.dat', status='unknown')
-
+  
   print *, 'Pre-voltage' 
   first=.true.
   do k = 0, Volt_range
      V1 = V + k*0.05
-
+     
      call SCF_GFs(V1, first)
-
+     
      GF0%r=GFf%r ; GF0%a=GFf%a ; GF0%L=GFf%L ; GF0%G=GFf%G
      if(first) first=.false.
      
