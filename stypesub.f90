@@ -64,30 +64,34 @@ subroutine trans(iw, Volt, trans_up, trans_down) !....square bracket terms of Eq
   use GreensFunctions
   implicit none
   integer :: iw,i,j,i1, j1
-  complex*16 :: s1, s2
+  complex*16, dimension(Natoms, Natoms) :: s1, s2, Cur
+  complex*16 :: trace1, trace2
   real*8 :: Volt, w, trans_up, trans_down
 
   w = omega(iw)
 
   work1 = GFf%L(:,:,iw)
   work2 = GFf%G(:,:,iw)
+
+  Cur = im*matmul(GammaL,(fermi_dist(w, Volt) - 1.d0)*work1 - fermi_dist(w, Volt)*work2)
   
-  s1 = (0.d0, 0.d0)
-  s2 = (0.d0, 0.d0) 
+  s1 = (0.d0, 0.d0); s2 = (0.d0, 0.d0) 
   do i = 1, Natoms, 2
      i1 = i + 1 
      do j = 1, Natoms, 2
         j1 = j +1 
        
-           s1 = s1 + (im/hbar)*GammaL(i,j)*(fermi_dist(w, Volt) - 1.d0)*work1(i,j) - fermi_dist(w, Volt)*work2(i,j)       
-           s2 = s2 + (im/hbar)*GammaL(i1,j1)*(fermi_dist(w, Volt) - 1.d0)*work1(i1,j1) - fermi_dist(w, Volt)*work2(i1,j1)
+           s1(i,j) = Cur(i,j) 
+           s2(i1,j1) = Cur(i1, j1) 
         
      end do
   end do
+
+  call trace_of_A(s1, Natoms, trace1)
+  call trace_of_A(s2, Natoms, trace2)
   
-  
-  trans_up = s1/(2.d0*pi)
-  trans_down = s2/(2.d0*pi)
+  trans_up = real(trace1)/(2.d0*pi)
+  trans_down = real(trace2)/(2.d0*pi)
 end subroutine trans
 
 subroutine Current(Volt, J_up, J_down)

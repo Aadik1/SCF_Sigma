@@ -33,13 +33,12 @@ program StypeJunction_Spin
   !......................Defines the level width funcitons for L,R-leads to central region, i.e. the respective couplings
   
   allocate(Hub(Natoms)) !...Hubbard only on orbital indices, not spin indices
-  open(11, file='Hubbard_info.dat', status='unknown')
+ 
+  Hub = 0.d0 
   do i = 1, Natoms, 2
      Hub(i) = Gamma0/10.d0 !>...read(11, *) Hub(i)
   end do
   close(11)
-
-  print *, 'HUBBARD:', Hub
   
   !.......................Finds the eigenvalues of the Central Hamiltonian and uses it to define the time-independent G(0)
   
