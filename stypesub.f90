@@ -3,22 +3,18 @@ subroutine input_SOC()
   implicit none
 
   open(22, file='inputSOC.dat', status='old')
-  read(22, *) T, V, mu, Volt_range, Gamma0
+  read(22, *) T, V, mu, Volt_range
   read(22,*) order
   read(22,*) dw,up,delta
   read(22,*) pulay
   read(22, *) hel_radius, hel_length, N_ions, N_turns, hand
+  read(22, *) E_CC, t_hop, lamb, Hubbard
   close(22) 
-  
-  
-  lamb = 0.d0 !Gamma0/2.d0
-  t_hop = 2.d0*Gamma0
-  E_CC = mu*Gamma0*2.d0
-  beta = 1.d0/(kb * T)
-  
+
+  beta = 1.d0/(kb*T)
   Natoms = 2*N_ions*N_turns !...# of ions per turn of the helix  and the # of turns multiplied by 2
   
-  write(*,*) 'T:', T, 'V:', V, 'mu:', mu, 'Volt_range:', Volt_range, gamma0
+  write(*,*) 'T:', T, 'V:', V, 'mu:', mu, 'Volt_range:', Volt_range, 'Hubbard:', Hubbard
   write(*,*) 'Order:', order, 'Natoms:', Natoms
   write(*,*) 'delta:', delta
   write(*,*) 'pulay:', pulay
@@ -63,33 +59,26 @@ end subroutine PrintFunctions
 subroutine trans(iw, Volt, trans_up, trans_down) !....square bracket terms of Eq. (2) in CHE
   use GreensFunctions
   implicit none
-  integer :: iw,i,j,i1, j1
-  complex*16, dimension(Natoms, Natoms) :: s1, s2, Cur
+  integer :: iw,i,ii
   complex*16 :: trace1, trace2
   real*8 :: Volt, w, trans_up, trans_down
 
   w = omega(iw)
-
+  
   work1 = GFf%L(:,:,iw)
   work2 = GFf%G(:,:,iw)
-
-  Cur = im*matmul(GammaL,(fermi_dist(w, Volt) - 1.d0)*work1 - fermi_dist(w, Volt)*work2)
   
-  s1 = (0.d0, 0.d0); s2 = (0.d0, 0.d0) 
+  work3 = im*matmul(GammaL, (fermi_dist(w, Volt)-1.d0)*work1 - fermi_dist(w, Volt)*work2)
+
+  trace1 = (0.d0,0.d0);   trace2 = (0.d0,0.d0)
   do i = 1, Natoms, 2
-     i1 = i + 1 
-     do j = 1, Natoms, 2
-        j1 = j +1 
-       
-           s1(i,j) = Cur(i,j) 
-           s2(i1,j1) = Cur(i1, j1) 
-        
-     end do
+     ii = i + 1 
+
+     trace1 = trace1 + work3(i,i)
+     trace2 = trace2 + work3(ii,ii)
+     
   end do
 
-  call trace_of_A(s1, Natoms, trace1)
-  call trace_of_A(s2, Natoms, trace2)
-  
   trans_up = real(trace1)/(2.d0*pi)
   trans_down = real(trace2)/(2.d0*pi)
 end subroutine trans
@@ -109,5 +98,5 @@ subroutine Current(Volt, J_up, J_down)
   
   J_up = J_up*(delta/hbar)
   J_down = J_down*(delta/hbar)
-
+  
 end subroutine Current

@@ -26,11 +26,13 @@ module GreensFunctions
 contains 
   
    !.....fermi-dirac distribution
-  real*8 function fermi_dist(w, V)
+    real*8 function fermi_dist(w, V)
     implicit none
-    real*8 ::  arg, w, V
+    real*8 :: arg, w, V
+
     arg = (w - mu + V/hbar)*beta
     fermi_dist =  1.d0/(exp(hbar*arg) +1.d0)
+    
   end function fermi_dist
 
 !====================================================
@@ -105,7 +107,7 @@ subroutine SCF_GFs(Volt,first)
      !$OMP& PRIVATE(iw, INFO)
      
      do iw = 1, N_of_w
-        call G_full(iw, Volt, Natoms)
+        call G_full(iw, Volt)
      end do
      !$OMP END PARALLEL DO
      
@@ -140,11 +142,6 @@ subroutine SCF_GFs(Volt,first)
      ! GF0%G= GF0%L + GF0%R - GF0%A
      !$OMP END CRITICAL
      
-
- !    if (iteration .eq. 2) then
- !       STOP
- !    end if
-      
      call print_sf(iteration)  
      if (sqrt(err) .lt. epsilon .or. order .eq. 0) then
         write(*,*)'... REACHED REQUIRED ACCURACY ...'
@@ -159,13 +156,15 @@ end subroutine SCF_GFs
 !================== Full GFs =========================
 !===================================================== 
 
-subroutine G_full(iw, Volt, N) !... Full Greens function, leaves Retarded and Advanced in the work arrays, application of Eq. (16) and (17), but with the full Sigmas, Eq. (3), (7) and (8) in CHE
+subroutine G_full(iw, Volt) !... Full Greens function, leaves Retarded and Advanced in the work arrays, application of Eq. (16) and (17), but with the full Sigmas, Eq. (3), (7) and (8) in CHE
   implicit none
   integer :: i, j, iw, sp, sp1, ii, jj, N
   real*8 :: Volt, w 
   complex*16 :: SigL, SigG, Omr
-  complex*16, dimension(N,N) ::  SigmaL, Sigma1, SigmaR, SigmaG,  w1, w2
-  
+  complex*16, allocatable, dimension(:,:) ::  SigmaL, Sigma1, SigmaR, SigmaG,  w1, w2
+
+  allocate(SigmaL(Natoms, Natoms), SigmaR(Natoms, Natoms), SigmaG(Natoms, Natoms), Sigma1(Natoms, Natoms))
+  allocate(w1(Natoms, Natoms), w2(Natoms, NAtoms))
   !............full SigmaR due to interactions Eq. (7)
   SigmaR = (0.d0, 0.d0); SigmaL = (0.d0, 0.d0); SigmaG = (0.d0, 0.d0)
   
@@ -176,15 +175,16 @@ subroutine G_full(iw, Volt, N) !... Full Greens function, leaves Retarded and Ad
      call first_order_sigma(Sigma1)
 
      do i = 1, Natoms, 2
-        do j = 1, Natoms, 2
+        do sp = 0, 1
+           ii = i +sp
            
-           do sp = 0, 1
+           do j = 1, Natoms, 2
               do sp1 = 0, 1
-                 ii = i +sp; jj= j + sp1
+                 jj= j + sp1
                  
                  Omr = Omega_r(i,j,sp,sp1,iw)
-                 
                  SigmaR(ii,jj) =  Sigma1(ii,jj)  + (Hub(j)*Hub(i)*OmR)*hbar**2
+                 
               end do
            end do
            
@@ -193,16 +193,19 @@ subroutine G_full(iw, Volt, N) !... Full Greens function, leaves Retarded and Ad
  
      !..............full SigmaL, Eq. (3) and (4)     
      !.....Interaction contribution of both Sigmas     
-     do i = 1, Natoms, 2
-        do j = 1, Natoms, 2
 
-           do sp = 0, 1
+     do i = 1, Natoms, 2
+        do sp = 0, 1
+           ii = i +sp
+           
+           do j = 1, Natoms, 2
               do sp1 = 0, 1
-                 ii = i +sp; jj= j + sp1
-                 
+                 jj= j + sp1                 
+
                  call int_SigLnG(i,j, sp, sp1, iw, SigL, SigG)
                  SigmaL(ii,jj) = Hub(j)*Hub(i)*SigL*hbar**2
                  SigmaG(ii,jj) = Hub(j)*Hub(i)*SigG*hbar**2
+                 
               end do
            end do
            
@@ -233,10 +236,10 @@ subroutine G_full(iw, Volt, N) !... Full Greens function, leaves Retarded and Ad
   GFf%L(:,:,iw) = matmul(matmul(w1, SigmaL), w2) !.. GL = Gr * SigmaL * Ga
   GFf%G(:,:,iw) = matmul(matmul(w1, SigmaG), w2) !.. GG = Gr * SigmaG * Ga
   !GFf%G(:,:,iw) = GFf%L(:,:,iw) + GFf%R(:,:,iw) - GFf%A(:,:,iw)
- 
+
+  deallocate(SigmaL, Sigma1, SigmaR, SigmaG,  w1, w2)
 end subroutine G_full
 
- 
 !=====================================================
 !======== Non-interacting GFs ========================
 !=====================================================  
@@ -265,6 +268,7 @@ subroutine GL_of_0()
         end do
      end do
   end do
+
 end subroutine GL_of_0
 
 subroutine G0_R_A()
@@ -307,36 +311,36 @@ end subroutine G0_R_A
        GF0%G(:,:,j) = work4
        !GF0%G(:,:,j) =  GF0%L(:,:,j) + GF0%R(:,:,j) - GF0%A(:,:,j)
     end do
-    
   end subroutine G0_L_G 
 
 !=====================================================
 !========Calcualtions needed for full GFs=============
-!===================================================== 
+!=====================================================
 
-subroutine first_order_sigma(Sigma1)
-  implicit none
-  integer :: i, s, s1 
-  complex*16 :: Hartree
-  complex*16, dimension(:,:) :: Sigma1(Natoms, Natoms) 
-  
-  Sigma1 = (0.d0, 0.d0); Hartree = (0.d0, 0.d0)
-  
-  do i = 1, Natoms, 2 !..orbitals 
-     
-     Hartree = G_nil(i,i)+G_nil(i+1,i+1)
-     !.. spins 
-     do s = 0, 1
-        do s1 = 0, 1
-           if (s .eq. s1) then 
-              Sigma1(i+s, i+s1) = im*hbar*Hub(i)*(G_nil(i+s, i+s1) - Hartree)
-           else
-              Sigma1(i+s, i+s1) = im*hbar*Hub(i)*G_nil(i+s, i+s1)
-           end if
-        end do
-     end do
-     
-  end do
+  subroutine first_order_sigma(Sigma1)
+    implicit none
+    integer :: i, s, s1, N 
+    complex*16 :: Hartree
+    complex*16 :: Sigma1(:,:)
+    
+    Sigma1 = (0.d0, 0.d0); Hartree = (0.d0, 0.d0)
+    
+    do i = 1, Natoms, 2 !..orbitals 
+       
+       Hartree = G_nil(i,i)+G_nil(i+1,i+1)
+       !.. spins 
+       do s = 0, 1
+          do s1 = 0, 1
+             if (s .eq. s1) then 
+                Sigma1(i+s, i+s1) = im*hbar*Hub(i)*(G_nil(i+s, i+s1) - Hartree)
+             else
+                Sigma1(i+s, i+s1) = im*hbar*Hub(i)*G_nil(i+s, i+s1)
+             end if
+          end do
+       end do
+       
+    end do
+
 end subroutine first_order_sigma
 
 !......................Calculation of Omega terms for the self-energies, Eq. (9) in CHE

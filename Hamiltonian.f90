@@ -5,7 +5,7 @@ module DefineHamiltonian
   real*8, dimension(:,:) :: C(3,3)
   real*8, dimension(3) :: Rij, w0
   real*8 :: T, mu, beta, V, delta, w_init, w_fin
-  real*8 :: E_CC, t_hop, hel_radius, hel_length, lamb, Gamma0, hand
+  real*8 :: E_CC, t_hop, hel_radius, hel_length, lamb, hand, Hubbard
 
   real*8, parameter :: hbar = 1.d0 !6.582119569e-16 !ev s
   real*8, parameter :: kb = 8.6173303e-5 !ev/K
@@ -47,8 +47,8 @@ contains
 !.................. hopping       
        if(i.le.Nat-1) then
           j=i+1 ; jj=2*j
-          H(ii-1,jj-1) = -t_hop
-          H(ii,jj)     = -t_hop
+          H(ii-1,jj-1) = t_hop
+          H(ii,jj)     = t_hop
        end if
        
 !...................spin-orbit          
