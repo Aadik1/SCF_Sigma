@@ -7,8 +7,9 @@ subroutine input_SOC()
   read(22,*) order
   read(22,*) dw,up,delta
   read(22,*) pulay
-  read(22, *) hel_radius, hel_length, N_ions, N_turns, hand
-  read(22, *) E_CC, t_hop, lamb, Hubbard
+  read(22,*) hel_radius, hel_length, N_ions, N_turns, hand
+  read(22,*) E_CC_up, E_CC_down, t_hop, lamb, Hubbard
+  read(22,*) GammaL_up, GammaL_dw, GammaR_up, GammaR_dw
   close(22) 
 
   beta = 1.d0/(kb*T)
