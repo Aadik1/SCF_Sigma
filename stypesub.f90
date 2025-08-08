@@ -57,6 +57,7 @@ subroutine PrintFunctions()
   close(12)
 end subroutine PrintFunctions
 
+
 subroutine trans(iw, Volt, trans_up, trans_down) !....square bracket terms of Eq. (2) in CHE
   use GreensFunctions
   implicit none
@@ -66,8 +67,8 @@ subroutine trans(iw, Volt, trans_up, trans_down) !....square bracket terms of Eq
 
   w = omega(iw)
   
-  work1 = GFf%L(:,:,iw)
-  work2 = GFf%G(:,:,iw)
+  work1 = GF0%L(:,:,iw)
+  work2 = GF0%G(:,:,iw)
   
   work3 = im*matmul(GammaL, (fermi_dist(w, Volt)-1.d0)*work1 - fermi_dist(w, Volt)*work2)
 
