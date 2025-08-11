@@ -4,9 +4,20 @@ program StypeJunction_Spin
   use OMP_Lib
   implicit none
   real*8 :: V1, J_up, J_down, total_time
-  integer ::  k, i
+  integer ::  k, i, start_tick, end_tick, rate, max_count
   character(len=30) :: vfn
   logical :: first
+
+  !....creates runtime datasheet 
+  open(22, file='runtime_datasheet.dat', status='unknown')  
+  call SYSTEM_CLOCK(COUNT_RATE=rate, COUNT_MAX=max_count)
+  if (rate .eq. 0) then
+     write(*,*) "Error: SYSTEM_CLOCK not supported or rate is 0."
+     stop
+  end if
+  call SYSTEM_CLOCK(COUNT=start_tick)
+  
+  write(22,*) '>>>>>>>>>>>>>>>>>>>>>>>>>>>>','Runtime Data Sheet','>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
   
   !.........................Deifnes Hamiltonian
   call input_SOC()
@@ -90,6 +101,15 @@ program StypeJunction_Spin
   
   close(3)
   close(30)
+  
+  call SYSTEM_CLOCK(COUNT=end_tick)
+  total_time = real(end_tick - start_tick)/real(rate)
+  total_time = total_time/60.d0
+
+  write(22,*) '<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'
+  write(22,*) 'Total Runtime:', total_time, 'mins'
+  write(22,*) '<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'
+  close(22)
 
   deallocate(GFf%L, GFf%G,GFf%R, GFf%A)
   deallocate(GF0%r, GF0%a, GF0%L, GF0%G) 
