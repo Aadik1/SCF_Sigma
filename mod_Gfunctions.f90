@@ -323,13 +323,13 @@ complex*16 function Omega_r(i, j, sp, sp1, iw)
                  m = i+s1; n= j+s
                  !.....both second order diagram contributions
                  !_________ 3rd diagram
-                 Omr = Omr + GF0%r(ii,jj,k_1)*GF0%L(m,n,k_2)*GF0%L(n,m,k_3) & 
-                      + GF0%L(ii,jj,k_1)*GF0%a(m,n,k_2)*GF0%L(n,m,k_3) & 
-                      + GF0%L(ii,jj,k_1)*GF0%G(m,n,k_2)*GF0%a(n,m,k_3) &
+                 Omr = Omr + GF0%r(ii,jj,k_1)*GF0%L(m,n,k_2)*GF0%G(n,m,k_3) & 
+                      + GF0%L(ii,jj,k_1)*GF0%L(m,n,k_2)*GF0%r(n,m,k_3) & 
+                      + GF0%L(ii,jj,k_1)*GF0%a(m,n,k_2)*GF0%L(n,m,k_3) &
                       
-                      - GF0%r(ii,n,k_1)*GF0%L(n,m,k_2)*GF0%L(m,jj,k_3) &
-                      - GF0%L(ii,n,k_1)*GF0%a(n,m,k_2)*GF0%L(m,jj,k_3) &
-                      - GF0%L(ii,n,k_1)*GF0%G(n,m,k_2)*GF0%a(m,jj,k_3) 
+                      - GF0%r(ii,n,k_1)*GF0%L(n,m,k_2)*GF0%G(m,jj,k_3) &
+                      - GF0%L(ii,n,k_1)*GF0%L(n,m,k_2)*GF0%r(m,jj,k_3) &
+                      - GF0%L(ii,n,k_1)*GF0%a(n,m,k_2)*GF0%L(m,jj,k_3) 
                       !_________ 4th diagram
                    
               end do
@@ -380,3 +380,4 @@ subroutine int_SigLnG(i,j,sp,sp1,iw,SigL,SigG) !... interaction contributions of
 end subroutine int_SigLnG
 
 end module GreensFunctions
+ 
