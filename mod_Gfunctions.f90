@@ -83,8 +83,19 @@ subroutine SCF_GFs(Volt,first)
         call G_full(iw, Volt)
      end do
      !$OMP END PARALLEL DO
+
+     GF0%r = pulay*GFf%r + (1.0d0-pulay)*GF0%r
+     GF0%l = pulay*GFf%l + (1.0d0-pulay)*GF0%l
+!...... do the advanced and greater components
      
-!..... calculation of the error     
+     do iw=1,N_of_w
+        work1=GF0%r(:,:,iw) 
+        call Hermitian_Conjg(work1, Natoms, work2)
+        GF0%a(:,:,iw)=work2
+     end do
+     GF0%G = GF0%L + GF0%R - GF0%A
+
+     !..... calculation of the error     
 
      err=0.0d0
      do iw = 1, N_of_w
@@ -96,12 +107,6 @@ subroutine SCF_GFs(Volt,first)
 
      write(*,*) 'err = ',sqrt(err)
      write(17,*) iteration, sqrt(err)
-   
-     GF0%R = pulay*GFf%R + (1.0d0-pulay)*GF0%R
-     GF0%A = pulay*GFf%A + (1.0d0-pulay)*GF0%A
-     GF0%L = pulay*GFf%L + (1.0d0-pulay)*GF0%L
-     GF0%G = pulay*GFf%G + (1.0d0-pulay)*GF0%G
-     ! GF0%G= GF0%L + GF0%R - GF0%A
      
      if (sqrt(err) .lt. epsilon .or. order .eq. 0) then
         write(*,*)'... REACHED REQUIRED ACCURACY ...'

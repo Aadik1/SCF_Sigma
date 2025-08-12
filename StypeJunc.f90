@@ -88,7 +88,7 @@ program StypeJunction_Spin
   print *, 'Pre-voltage' 
   first=.true.
   do k = 0, Volt_range
-     V1 = V + k*0.05
+     V1 = V + k*delv
      
      call SCF_GFs(V1, first)
      
@@ -96,6 +96,7 @@ program StypeJunction_Spin
      
      call Current(V1, J_up, J_down)
      write(30, *) V1, J_up, J_down
+     flush(30)
      print *, 'Progress:', k/(Volt_range*0.01), '%', J_up, J_down
   end do
   
@@ -109,6 +110,7 @@ program StypeJunction_Spin
   write(22,*) '<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'
   write(22,*) 'Total Runtime:', total_time, 'mins'
   write(22,*) '<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'
+  flush(22)
   close(22)
 
   deallocate(GFf%L, GFf%G,GFf%R, GFf%A)

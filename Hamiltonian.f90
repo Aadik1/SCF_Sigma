@@ -4,7 +4,7 @@ module DefineHamiltonian
 
   real*8, dimension(:,:) :: C(3,3)
   real*8, dimension(3) :: Rij, w0
-  real*8 :: T, mu, beta, V, delta, w_init, w_fin
+  real*8 :: T, mu, beta, V, delta, w_init, w_fin, delv, Vf
   real*8 :: E_CC_up, E_CC_down, t_hop
   real*8 :: hel_radius, hel_length, lamb, hand, Hubbard
   real*8 :: GammaL_up, GammaL_dw, GammaR_up, GammaR_dw

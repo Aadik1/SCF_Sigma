@@ -3,7 +3,7 @@ subroutine input_SOC()
   implicit none
 
   open(22, file='inputSOC.dat', status='old')
-  read(22, *) T, V, mu, Volt_range
+  read(22, *) T, V, Vf, delv, mu
   read(22,*) order
   read(22,*) dw,up,delta
   read(22,*) pulay
@@ -14,6 +14,8 @@ subroutine input_SOC()
 
   beta = 1.d0/(kb*T)
   Natoms = 2*N_ions*N_turns !...# of ions per turn of the helix  and the # of turns multiplied by 2
+
+  Volt_range = (Vf - V)/delv
   
   write(*,*) 'T:', T, 'V:', V, 'mu:', mu, 'Volt_range:', Volt_range, 'Hubbard:', Hubbard
   write(*,*) 'Order:', order, 'Natoms:', Natoms
