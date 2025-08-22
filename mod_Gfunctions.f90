@@ -22,6 +22,16 @@ module GreensFunctions
   end type GF_full
   type(GF_full) :: GFf
 
+    
+!........ the wheel memory for Pulay
+  integer :: iP,size
+  type :: GX
+     complex*16, allocatable, dimension(:,:,:,:) :: r_in,r_out,l_out
+  end type GX
+  type(GX) :: GP
+  real*8,allocatable,dimension(:,:) :: Ov,Bm,Rhs
+  real*8,allocatable,dimension(:) :: C_coeff
+  integer,dimension(:),allocatable :: IPIV
 
 contains 
   
@@ -43,7 +53,7 @@ contains
 !.............Calculates GFs at every omega and Voltage simultaneously 
 subroutine SCF_GFs(Volt,first)
   implicit none
-  integer :: iw, iteration,i, Vname
+  integer :: iw, iteration,i, Vname, wheel, it
   real*8 :: Volt, err, diff
   character(len=30) :: fn, fn1
   logical :: first
@@ -66,7 +76,10 @@ subroutine SCF_GFs(Volt,first)
   else
      open(17,file='err_V_n'//trim(fn1)//'.dat',status='unknown')
   end if
-
+!.... initialise the wheel: this is position on the wheel for the curent GFs
+!                           to be placed
+  GP%r_in=(0.0d0,0.0d0) ; GP%r_out=(0.0d0,0.0d0) ; Ov=0.0d0
+  
   DO
      iteration = iteration + 1
      write(*,*) '.... ITERATION = ',iteration,' ....'
@@ -75,7 +88,7 @@ subroutine SCF_GFs(Volt,first)
 !.................full Gr and Ga, Eq. (5) and (6)
 
      call GL_of_0()
-     
+
      !$OMP PARALLEL DO &
      !$OMP& PRIVATE(iw, INFO)
      
@@ -84,8 +97,95 @@ subroutine SCF_GFs(Volt,first)
      end do
      !$OMP END PARALLEL DO
 
-     GF0%r = pulay*GFf%r + (1.0d0-pulay)*GF0%r
-     GF0%l = pulay*GFf%l + (1.0d0-pulay)*GF0%l
+!
+!==========================............... one step Pulay.........===========
+!
+     if(method.eq.1) then
+
+        GF0%r = pulay*GFf%r + (1.0d0-pulay)*GF0%r
+        GF0%l = pulay*GFf%l + (1.0d0-pulay)*GF0%l
+
+!
+!==========================............. many steps Pulay.........===========
+!
+     else if(method.eq.2) then
+        
+!....... place the GFf%r_in/out into the wheel
+     
+        IF(iteration.eq.1) THEN
+        
+           GP%r_in(:,:,:,1)=GF0%r
+           GF0%r = pulay*GFf%r + (1.0d0-pulay)*GF0%r
+           GF0%l = pulay*GFf%l + (1.0d0-pulay)*GF0%l
+           GP%r_out(:,:,:,1)=GF0%r ; GP%l_out(:,:,:,1)=GF0%l
+           
+           size=1
+           call overlap(1,1)
+           
+        ELSE IF(iteration.eq.2) THEN
+           
+           GP%r_in(:,:,:,2)=GFf%r
+           GF0%r = pulay*GFf%r + (1.0d0-pulay)*GF0%r
+           GF0%l = pulay*GFf%l + (1.0d0-pulay)*GF0%l
+           GP%r_out(:,:,:,2)=GF0%r ; GP%l_out(:,:,:,2)=GF0%l
+           
+           size=2
+           call overlap(2,2) ; call overlap(2,1) ; Ov(1,2)=Ov(2,1)
+           
+        ELSE IF(iteration.le.iP) THEN
+
+!_________ get c-coefficients from the previous Ov matrix        
+
+           call C_coefficients()
+
+!_________ update GF0%r and GF0%l (out) by mixing with the previos iterations
+
+           GP%r_in(:,:,:,iteration)=GFf%r
+           GF0%r=pulay*GFf%r ; GF0%l=pulay*GFf%l
+           do it=1,iteration-1
+              GF0%r=GF0%r+(1-pulay)*C_coeff(it)*GP%r_out(:,:,:,it)
+              GF0%l=GF0%l+(1-pulay)*C_coeff(it)*GP%l_out(:,:,:,it)
+           end do
+           GP%r_out(:,:,:,iteration)=GF0%r ; GP%l_out(:,:,:,iteration)=GF0%l
+        
+!_________ updting the ov matrix for the next iteration       
+
+           size=iteration
+           call overlap(iteration,iteration) 
+           do i=1,iteration-1
+              call overlap(iteration,i) ; Ov(i,iteration)=Ov(iteration,i)
+           end do
+        
+        ELSE IF(iteration.gt.iP) THEN
+           
+           call C_coefficients()
+
+           wheel=mod(iteration,iP) ; if(wheel.eq.0) wheel=iP
+        
+!_________ update GF0%r and GF0%l (out) by mixing with the previos iterations
+
+           GP%r_in(:,:,:,wheel)=GFf%r
+           GF0%r=pulay*GFf%r ; GF0%l=pulay*GFf%l
+           do it=1,iP
+              GF0%r=GF0%r+(1-pulay)*C_coeff(it)*GP%r_out(:,:,:,it)
+              GF0%l=GF0%l+(1-pulay)*C_coeff(it)*GP%l_out(:,:,:,it)
+           end do
+           GP%r_out(:,:,:,wheel)=GF0%r ; GP%l_out(:,:,:,wheel)=GF0%l
+        
+!_________ updating the ov matrix for the next iteration       
+
+           size=iP
+           call overlap(wheel,wheel)
+           do i=1,iP
+              if(i.ne.wheel) then
+                 call overlap(wheel,i) ; Ov(i,wheel)=Ov(wheel,i)
+              end if
+           end do
+        
+        END IF
+
+     end if
+     
 !...... do the advanced and greater components
      
      do iw=1,N_of_w
@@ -95,7 +195,7 @@ subroutine SCF_GFs(Volt,first)
      end do
      GF0%G = GF0%L + GF0%R - GF0%A
 
-     !..... calculation of the error     
+!..... calculation of the error     
 
      err=0.0d0
      do iw = 1, N_of_w
@@ -104,9 +204,10 @@ subroutine SCF_GFs(Volt,first)
            err=err +diff*diff
         end do
      end do
-
      write(*,*) 'err = ',sqrt(err)
-     write(17,*) iteration, sqrt(err)
+
+!____________ useful if one would like to check the convergence     
+!     write(13,*) iteration, current(Volt)
      
      if (sqrt(err) .lt. epsilon .or. order .eq. 0) then
         write(*,*)'... REACHED REQUIRED ACCURACY ...'
@@ -383,6 +484,71 @@ subroutine int_SigLnG(i,j,sp,sp1,iw,SigL,SigG) !... interaction contributions of
   pp = delta/(2.d0*pi)
   SigL = SigL*pp*pp ; SigG = SigG*pp*pp
 end subroutine int_SigLnG
+
+
+!====================================================
+!========== Pulay's Routines ========================
+!====================================================
+
+subroutine overlap(i,j)
+  integer :: i,j,i1,iw
+  real*8 :: ci,cj,oo,pp
+
+  oo=(0.0d0,0.0d0)
+  do i1=1,Natoms
+     do iw=1,N_of_w
+        ci=aimag(GP%r_in(i1,i1,iw,i)-GP%r_out(i1,i1,iw,i))
+        cj=aimag(GP%r_in(i1,i1,iw,j)-GP%r_out(i1,i1,iw,j))
+        oo = oo + ci*cj
+     end do
+  end do
+  pp = delta/(2.d0*pi) 
+  Ov(i,j)=oo*pp
+  
+end subroutine overlap
+
+subroutine C_coefficients()
+  integer :: i,j,N,INFO
+  real*8 :: s(10)
+
+  N=size+1
+  allocate(Bm(N,N))
+
+  Bm(1:size,1:size)=Ov ; Bm(N,N)=0.0d0
+  do i=1,size
+     Bm(i,N)=-1.0d0 ;  Bm(N,i)=-1.0d0
+  end do
+  Rhs(1:size,1)=0.0d0 ; Rhs(N,1)=-1.0d0
+
+!...... calling linear system of eqs: Bm * X = Rhs, 
+!       where on output X is in Rhs and Bm destroyed
+
+  call dgesv(N,1,Bm,N,IPIV,Rhs,N,INFO)
+
+!.... solution
+
+  C_coeff(1:size)=Rhs(1:size,1)
+  deallocate(Bm)
+
+end subroutine C_coefficients
+
+!====================================================
+!========== restart routines  =======================
+!====================================================
+
+subroutine save_GFs()
+  implicit none
+  open(1,file='Greens_functions.dat',form='unformatted',status='unknown')
+  write(1) GF0%r,GF0%a,GF0%l,GF0%g
+  close(1)
+end subroutine save_GFs
+
+subroutine read_saved_GFs()
+  implicit none
+  open(1,file='Greens_functions.dat',form='unformatted',status='old')
+  read(1) GF0%r,GF0%a,GF0%l,GF0%g
+  close(1)
+end subroutine read_saved_GFs
 
 end module GreensFunctions
  
