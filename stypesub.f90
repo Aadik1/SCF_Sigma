@@ -1,17 +1,56 @@
 subroutine input_SOC()
   use GreensFunctions 
   implicit none
-
+  character(len=256) :: line, key
+  integer :: ios, eq_pos
+  
   open(22, file='inputSOC.dat', status='old')
-  read(22, *) T, V, Vf, delv, mu
-  read(22,*) order
-  read(22,*) dw,up,delta
-  read(22,*) pulay
-  read(22,*) hel_radius, hel_length, N_ions, N_turns, hand
-  read(22,*) E_CC_up, E_CC_down, t_hop, lamb, Hubbard
-  read(22,*) GammaL_up, GammaL_dw, GammaR_up, GammaR_dw
-  close(22) 
 
+  do
+    read(22,'(A)', iostat=ios) line
+    if (ios .ne. 0) exit   ! end of file
+    if (trim(line) .eq. '' .or. line(1:1) .eq. '#') cycle  ! skip blank or comment
+
+    eq_pos = index(line, "=")
+    if (eq_pos .eq. 0) cycle  ! skip malformed lines
+
+    key = adjustl(trim(line(:eq_pos-1)))
+
+    select case (trim(key))
+    case("T");            read(line(eq_pos+1:),*) T
+    case("V");            read(line(eq_pos+1:),*) V
+    case("Vf");           read(line(eq_pos+1:),*) Vf
+    case("delv");         read(line(eq_pos+1:),*) delv
+
+    case("N_ions");       read(line(eq_pos+1:),*) N_ions
+    case("N_turns");      read(line(eq_pos+1:),*) N_turns
+    case("hel_length");   read(line(eq_pos+1:),*) hel_length
+    case("hel_radius");   read(line(eq_pos+1:),*) hel_radius
+    case("hand");         read(line(eq_pos+1:),*) hand
+       
+    case("mu");           read(line(eq_pos+1:),*) mu
+    case("order");        read(line(eq_pos+1:),*) order
+    case("dw");           read(line(eq_pos+1:),*) dw
+    case("up");           read(line(eq_pos+1:),*) up
+    case("delta");        read(line(eq_pos+1:),*) delta
+
+    case("pulay");        read(line(eq_pos+1:),*) pulay
+
+    case("E_CC_up");      read(line(eq_pos+1:),*) E_CC_up
+    case("E_CC_down");    read(line(eq_pos+1:),*) E_CC_down
+    case("t_hop");        read(line(eq_pos+1:),*) t_hop
+    case("lamb");         read(line(eq_pos+1:),*) lamb
+    case("Hubbard");      read(line(eq_pos+1:),*) Hubbard
+       
+    case("GammaL_up");    read(line(eq_pos+1:),*) GammaL_up
+    case("GammaL_dw");    read(line(eq_pos+1:),*) GammaL_dw
+    case("GammaR_up");    read(line(eq_pos+1:),*) GammaR_up
+    case("GammaR_dw");    read(line(eq_pos+1:),*) GammaR_dw
+       
+    end select
+  end do
+  close(22) 
+  
   beta = 1.d0/(kb*T)
   Natoms = 2*N_ions*N_turns !...# of ions per turn of the helix  and the # of turns multiplied by 2
 
@@ -59,7 +98,6 @@ subroutine PrintFunctions()
   close(12)
 end subroutine PrintFunctions
 
-
 subroutine trans(iw, Volt, trans_up, trans_down) !....square bracket terms of Eq. (2) in CHE
   use GreensFunctions
   implicit none
@@ -68,7 +106,7 @@ subroutine trans(iw, Volt, trans_up, trans_down) !....square bracket terms of Eq
   real*8 :: Volt, w, trans_up, trans_down
 
   w = omega(iw)
-  
+
   work1 = GF0%L(:,:,iw)
   work2 = GF0%G(:,:,iw)
   

@@ -9,7 +9,7 @@ program StypeJunction_Spin
   logical :: first
 
   !....creates runtime datasheet 
-  open(22, file='runtime_datasheet.dat', status='unknown')  
+  open(212, file='runtime_datasheet.dat', status='unknown')  
   call SYSTEM_CLOCK(COUNT_RATE=rate, COUNT_MAX=max_count)
   if (rate .eq. 0) then
      write(*,*) "Error: SYSTEM_CLOCK not supported or rate is 0."
@@ -17,7 +17,7 @@ program StypeJunction_Spin
   end if
   call SYSTEM_CLOCK(COUNT=start_tick)
   
-  write(22,*) '>>>>>>>>>>>>>>>>>>>>>>>>>>>>','Runtime Data Sheet','>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
+  write(212,*) '>>>>>>>>>>>>>>>>>>>>>>>>>>>>','Runtime Data Sheet','>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
   
   !.........................Deifnes Hamiltonian
   call input_SOC()
@@ -85,7 +85,6 @@ program StypeJunction_Spin
   write(vfn,'(i0)') order
   open(30, file='Volt_Current_'//trim(vfn)//'.dat', status='unknown')
   
-  print *, 'Pre-voltage' 
   first=.true.
   do k = 0, Volt_range
      V1 = V + k*delv
@@ -107,11 +106,12 @@ program StypeJunction_Spin
   total_time = real(end_tick - start_tick)/real(rate)
   total_time = total_time/60.d0
 
-  write(22,*) '<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'
-  write(22,*) 'Total Runtime:', total_time, 'mins'
-  write(22,*) '<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'
-  flush(22)
-  close(22)
+  write(212,*) '<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'
+  write(212,*) 'Total Runtime:', total_time, 'mins'
+  write(*,*) 'Total Runtime:', total_time, 'mins'
+  write(212,*) '<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'
+  flush(212)
+  close(212)
 
   deallocate(GFf%L, GFf%G,GFf%R, GFf%A)
   deallocate(GF0%r, GF0%a, GF0%L, GF0%G) 
