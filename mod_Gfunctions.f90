@@ -207,7 +207,13 @@ subroutine SCF_GFs(Volt,first)
      write(*,*) 'err = ',sqrt(err)
 
 !____________ useful if one would like to check the convergence     
-!     write(13,*) iteration, current(Volt)
+     !     write(13,*) iteration, current(Volt)
+
+ 
+     if (iteration .gt. 300) then
+        write(*,*) 'No Convergence'
+        STOP
+     end if
      
      if (sqrt(err) .lt. epsilon .or. order .eq. 0) then
         write(*,*)'... REACHED REQUIRED ACCURACY ...'
