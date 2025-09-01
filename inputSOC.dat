@@ -4,12 +4,22 @@ Vf = 2.d0
 delv = 0.05
 mu = 2
 
-N_ions = 3
+N_ions = 1
 N_turns = 1
 hel_length = 1.d0
 hel_radius = 1.d0
 hand = 1
-       
+   
+order = 2
+
+dw = 10.0
+up = 10.0
+delta = 0.1
+
+method = 1
+pulay = 0.4d0
+iP = 6
+restart = F
 
 E_CC_up = 4.d0
 E_CC_down = 4.d0	
@@ -17,18 +27,5 @@ t_hop = -2.d0
 lamb = 1.d0
 Hubbard = 0.5d0
 
-GammaL_up = 1.d0
-GammaL_dw = 1.d0
-GammaR_up = 1.d0
-GammaR_dw = 1.d0
-
-order = 2
-
-dw = 10.0
-up = 10.0
-delta = 0.1
-
-method = 2
-pulay = 0.9d0
-iP = 6
-restart = F
+Gammaa = 1.d0
+del_Gamma = 0.5d0

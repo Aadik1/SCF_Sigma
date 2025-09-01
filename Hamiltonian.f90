@@ -1,14 +1,15 @@
 module DefineHamiltonian
   implicit none
-  integer :: Natoms, N_of_w, Volt_range, N_turns, N_ions, order, method
+  integer :: Natoms, N_of_w, Volt_range, N_turns, N_ions, order, method, N_leads
 
-  real*8, dimension(:,:) :: C(3,3)
+  real*8, dimension(:,:) :: C(3,3), pauli_z(2,2)
   real*8, dimension(3) :: Rij, w0
   real*8 :: T, mu, beta, V, delta, w_init, w_fin, delv, Vf
   real*8 :: E_CC_up, E_CC_down, t_hop
+  real*8 :: L_up, L_down, R_up, R_down, SG_L, SG_R
   real*8 :: hel_radius, hel_length, lamb, hand, Hubbard
-  real*8 :: GammaL_up, GammaL_dw, GammaR_up, GammaR_dw
-
+  real*8 :: Gamma, del_Gamma
+  
   real*8, parameter :: hbar = 1.d0 !6.582119569e-16 !ev s
   real*8, parameter :: kb = 8.6173303e-5 !ev/K
   real*8, parameter :: pi = 4.d0*atan(1.d0)
@@ -35,14 +36,12 @@ contains
     integer :: i,j,ii,jj,Nat
     real*8 :: r1(3),r2(3),r(3),d1(3),d2(3),dm1,dm2,v(3),mod_vec
     complex*16 :: im=(0.0d0,1.0d0)
-    
-!........ calculate the uppr right triangle    
-    Nat=Natoms/2
-    
-    H=(0.0d0,0.0d0)
-    do i=1,Nat
-       ii=2*i
 
+    H=(0.0d0,0.0d0)
+
+    Nat=Natoms/2 
+    do i= 1, Nat
+       ii=2*i
 !..................diagonal        
        H(ii-1,ii-1)= E_CC_up
        H(ii,ii)    = E_CC_down
@@ -71,9 +70,9 @@ contains
       end if
     end do
     
-!........ make Hermitian
+    !........ make Hermitian
     
-    do i=1,Natoms
+    do i= 1,Natoms
        do j=i,Natoms
           H(j,i)=conjg(H(i,j))
        end do

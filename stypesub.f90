@@ -45,19 +45,20 @@ subroutine input_SOC()
     case("lamb");         read(line(eq_pos+1:),*) lamb
     case("Hubbard");      read(line(eq_pos+1:),*) Hubbard
        
-    case("GammaL_up");    read(line(eq_pos+1:),*) GammaL_up
-    case("GammaL_dw");    read(line(eq_pos+1:),*) GammaL_dw
-    case("GammaR_up");    read(line(eq_pos+1:),*) GammaR_up
-    case("GammaR_dw");    read(line(eq_pos+1:),*) GammaR_dw
-       
+    case("Gamma");        read(line(eq_pos+1:),*) Gamma
+    case("del_Gamma");    read(line(eq_pos+1:),*) del_Gamma
+
     end select
   end do
   close(22) 
   
   beta = 1.d0/(kb*T)
-  Natoms = 2*N_ions*N_turns !...# of ions per turn of the helix  and the # of turns multiplied by 2
+  N_leads = N_leads*2 !..accounts for spin
+  Natoms = 2*N_ions*N_turns + 2*N_leads!...# of ions per turn of the helix  and the # of turns multiplied by 2 for spins, then add the leads on either end
 
   Volt_range = (Vf - V)/delv
+
+  pauli_z = 0.d0; pauli_z(1,1) = 1.d0; pauli_z(2,2) = -1.d0
   
   write(*,*) 'T:', T, 'V:', V, 'mu:', mu, 'Volt_range:', Volt_range, 'Hubbard:', Hubbard
   write(*,*) 'Order:', order, 'Natoms:', Natoms
@@ -97,6 +98,9 @@ subroutine PrintFunctions()
   do j = 1, Natoms
      write(12, '(i3,10(a,2f10.5,a))') j,(' [',Eigenvec(i,j),'] ', i = 1, Natoms)
   end do
+
+  write(12,*) 'Natoms:', Natoms-N_leads
+  write(12,*) 'N_leads:', N_leads
 
   close(12)
 end subroutine PrintFunctions

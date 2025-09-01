@@ -3,7 +3,7 @@ program StypeJunction_Spin
   use GreensFunctions
   use OMP_Lib
   implicit none
-  real*8 :: V1, J_up, J_down, total_time
+  real*8 :: V1, J_up, J_down, total_time, polarisation
   integer ::  k, i, start_tick, end_tick, rate, max_count
   character(len=30) :: vfn
   logical :: first
@@ -26,9 +26,9 @@ program StypeJunction_Spin
   allocate(GammaL(Natoms, Natoms)); allocate(GammaR(Natoms, Natoms))
   call SOC_Hamiltonian()
    
-  GammaL = (0.d0, 0.d0); GammaL(1,1) = GammaL_up;  GammaL(2,2) = GammaL_dw
+  GammaL = (0.d0, 0.d0); GammaL(1,1) = Gamma;  GammaL(2,2) = Gamma
   
-  GammaR = (0.d0, 0.d0); GammaR(Natoms-1, Natoms-1) = GammaR_up;  GammaR(Natoms, Natoms) = GammaR_dw
+  GammaR = (0.d0, 0.d0); GammaR(Natoms-1, Natoms-1) = Gamma;  GammaR(Natoms, Natoms) = Gamma + del_Gamma
   
   !......................Defines the level width funcitons for L,R-leads to central region, i.e. the respective couplings
   
@@ -107,8 +107,10 @@ program StypeJunction_Spin
      if(first) first=.false.
      
      call Current(V1, J_up, J_down)
-     write(30, *) V1, J_up, J_down
+     polarisation = (J_up-J_down)/(J_up+J_down)
+     write(30, *) V1, J_up, J_down, polarisation
      flush(30)
+     
      print *, 'Progress:', k/(Volt_range*0.01), '%', J_up, J_down
   end do
   

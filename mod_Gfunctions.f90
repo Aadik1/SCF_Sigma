@@ -58,7 +58,7 @@ subroutine SCF_GFs(Volt,first)
   character(len=30) :: fn, fn1
   logical :: first
 
-  iteration = 0
+  1 iteration = 0
 
   write(22,*) '........SCF Calculations at Voltage:', Volt, '..........'
 
@@ -210,15 +210,21 @@ subroutine SCF_GFs(Volt,first)
      !     write(13,*) iteration, current(Volt)
 
  
-     if (iteration .gt. 300) then
-        write(*,*) 'No Convergence'
-        STOP
-     end if
-     
      if (sqrt(err) .lt. epsilon .or. order .eq. 0) then
         write(*,*)'... REACHED REQUIRED ACCURACY ...'
         exit
      end if
+     
+     if (iteration .gt. 1) then
+        pulay = pulay - 0.1
+        write(*,*) 'Restart at iteration:', iteration
+        write(*,*) 'Pulay:', Pulay
+        go to 1
+     else if (iteration .gt. 3 .and. pulay .le. 0.1) then
+        write(*,*) 'No Convergence'
+        STOP
+     end if
+     
   END DO
   close(17)
 end subroutine SCF_GFs
@@ -306,8 +312,8 @@ subroutine G_full(iw, Volt) !... Full Greens function, leaves Retarded and Advan
   !.............full GL and GG, Eq. (16) and (17)
   
   GFf%L(:,:,iw) = matmul(matmul(w1, SigmaL), w2) !.. GL = Gr * SigmaL * Ga
-  GFf%G(:,:,iw) = matmul(matmul(w1, SigmaG), w2) !.. GG = Gr * SigmaG * Ga
-  !GFf%G(:,:,iw) = GFf%L(:,:,iw) + GFf%R(:,:,iw) - GFf%A(:,:,iw)
+ ! GFf%G(:,:,iw) = matmul(matmul(w1, SigmaG), w2) !.. GG = Gr * SigmaG * Ga
+  GFf%G(:,:,iw) = GFf%L(:,:,iw) + GFf%R(:,:,iw) - GFf%A(:,:,iw)
 
   deallocate(SigmaL, Sigma1, SigmaR, SigmaG,  w1, w2)
 end subroutine G_full
