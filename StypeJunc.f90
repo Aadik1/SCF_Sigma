@@ -6,7 +6,6 @@ program StypeJunction_Spin
   real*8 :: V1, J_up, J_down, total_time, polarisation
   integer ::  k, i, start_tick, end_tick, rate, max_count
   character(len=30) :: vfn
-  logical :: first
 
   !....creates runtime datasheet 
   open(212, file='runtime_datasheet.dat', status='unknown')  
@@ -26,7 +25,7 @@ program StypeJunction_Spin
   allocate(GammaL(Natoms, Natoms)); allocate(GammaR(Natoms, Natoms))
   call SOC_Hamiltonian()
    
-  GammaL = (0.d0, 0.d0); GammaL(1,1) = Gamma;  GammaL(2,2) = Gamma
+  GammaL = (0.d0, 0.d0); GammaL(1,1) = Gamma;  GammaL(2,2) = Gamma 
   
   GammaR = (0.d0, 0.d0); GammaR(Natoms-1, Natoms-1) = Gamma;  GammaR(Natoms, Natoms) = Gamma + del_Gamma
   
@@ -71,41 +70,23 @@ program StypeJunction_Spin
 
   allocate(G_nil(Natoms, Natoms))
 !.......................Allocates all the full self-energies and full Greens functions needed in the current
-!  allocate(SigmaL(Natoms, Natoms)); allocate(Sigma1(Natoms, Natoms))
-!  allocate(SigmaR(Natoms, Natoms))
-  
+  allocate(SigmaR(Natoms, Natoms, N_of_W)); allocate(SigmaL(Natoms, Natoms, N_of_w)); allocate(SigmaG(Natoms, Natoms, N_of_w))
+
 !...............calculate GR and GA for all voltages on the omega grid
-  allocate(work1(Natoms, Natoms)); allocate(work2(Natoms, Natoms)); allocate(work3(Natoms, Natoms)); allocate(work4(Natoms, Natoms))
-
-    
-!................ allocate arrays for Pulay wheel memory
-
-  allocate(GP%r_in(Natoms,Natoms,N_of_w,iP),GP%r_out(Natoms,Natoms,N_of_w,iP))
-  allocate(GP%l_out(Natoms,Natoms,N_of_w,iP))
-  allocate(Ov(iP,iP),C_coeff(iP),Rhs(iP+1,1),IPIV(iP+1))
+  allocate(work1(Natoms, Natoms)); allocate(work2(Natoms, Natoms))
+  allocate(work3(Natoms, Natoms)); allocate(work4(Natoms, Natoms))
   
   !.......................Calculates and plots Voltage vs Current curve
-
-  
-  if(restart) then
-     call read_saved_GFs() ; first=.false.
-  else
-     first=.true.
-  end if
 
   open(3, file='Print.dat', status='unknown')
   
   write(vfn,'(i0)') order
   open(30, file='Volt_Current_'//trim(vfn)//'.dat', status='unknown')
-  
-  first=.true.
+
+
   do k = 0, Volt_range
      V1 = V + k*delv
-     
-     call SCF_GFs(V1, first)
-     
-     if(first) first=.false.
-     
+   
      call Current(V1, J_up, J_down)
      polarisation = (J_up-J_down)/(J_up+J_down)
      write(30, *) V1, J_up, J_down, polarisation
@@ -132,8 +113,7 @@ program StypeJunction_Spin
   deallocate(GF0%r, GF0%a, GF0%L, GF0%G) 
   deallocate(work1, work2, work3, work4)
   deallocate(H, Hub, omega)
-  deallocate(GP%r_in,GP%r_out,GP%l_out,Ov)
-  !deallocate(SigmaL, Sigma1, SigmaR);
+  deallocate(SigmaL, SigmaR, SigmaG)
   deallocate(GammaL, GammaR, G_nil)
 end program StypeJunction_Spin
 

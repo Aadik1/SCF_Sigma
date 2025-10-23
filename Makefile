@@ -38,7 +38,7 @@ test:
 	@echo - - - - - - - - - - - >> TIME.LOG
 
 clean:
-	@rm -f $(INLINE) $(OBJECTS) $(OBJECTS1) sf* *.o *.mod *.out *~ iteration* fort* err* Volt_Current* Print.dat SpinJunction.*
+	@rm -f $(INLINE) $(OBJECTS) $(OBJECTS1) Volt_Current_* sf_* *.o *.mod *.out *~ iteration* fort* err*  Print.dat SpinJunction.*
 	clear
 
 # include file dependencies

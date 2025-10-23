@@ -34,13 +34,10 @@ subroutine input_SOC()
     case("up");           read(line(eq_pos+1:),*) up
     case("delta");        read(line(eq_pos+1:),*) delta
 
-    case("method");       read(line(eq_pos+1:),*) method
     case("pulay");        read(line(eq_pos+1:),*) pulay
-    case("iP");           read(line(eq_pos+1:),*) iP
     case("restart");      read(line(eq_pos+1:),*) restart
        
-    case("E_CC_up");      read(line(eq_pos+1:),*) E_CC_up
-    case("E_CC_down");    read(line(eq_pos+1:),*) E_CC_down
+    case("E_CC");      read(line(eq_pos+1:),*) E_CC
     case("t_hop");        read(line(eq_pos+1:),*) t_hop
     case("lamb");         read(line(eq_pos+1:),*) lamb
     case("Hubbard");      read(line(eq_pos+1:),*) Hubbard
@@ -139,6 +136,9 @@ subroutine Current(Volt, J_up, J_down)
   integer :: iw
   
   J_up = 0.d0; J_down = 0.d0
+
+  call SCF_Calc(Volt)
+  
   do iw = 1, N_of_w
      call trans(iw, Volt, trans_up, trans_down)
      J_up = J_up + trans_up

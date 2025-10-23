@@ -9,7 +9,7 @@ module GreensFunctions
   real*8 :: pulay, dw, up
   
   complex*16, allocatable, dimension(:,:) :: GammaL, GammaR, Eigenvec, G_nil
-!  complex*16, allocatable, dimension(:,:) ::  SigmaL, Sigma1, SigmaR
+  complex*16, allocatable, dimension(:,:,:) ::  SigmaL, SigmaR, SigmaG
   complex*16, allocatable, dimension(:,:) :: work1, work2, work3, work4
   
   type :: GF
@@ -21,17 +21,6 @@ module GreensFunctions
      complex*16, allocatable, dimension(:,:,:) :: R, A, L, G
   end type GF_full
   type(GF_full) :: GFf
-
-    
-!........ the wheel memory for Pulay
-  integer :: iP,size
-  type :: GX
-     complex*16, allocatable, dimension(:,:,:,:) :: r_in,r_out,l_out
-  end type GX
-  type(GX) :: GP
-  real*8,allocatable,dimension(:,:) :: Ov,Bm,Rhs
-  real*8,allocatable,dimension(:) :: C_coeff
-  integer,dimension(:),allocatable :: IPIV
 
 contains 
   
@@ -49,273 +38,155 @@ contains
 !========== Self consistency field calculations =====
 !====================================================
 
-!.............need G0f%L to calculate GL_of_0
-!.............Calculates GFs at every omega and Voltage simultaneously 
-subroutine SCF_GFs(Volt,first)
-  implicit none
-  integer :: iw, iteration,i, Vname, wheel, it
-  real*8 :: Volt, err, diff
-  character(len=30) :: fn, fn1
-  logical :: first
+  subroutine SCF_calc(Volt)
+    implicit none
+    integer :: i, iw, iteration
+    real*8 :: Volt, w, err, diff
+    complex*16, allocatable, dimension(:,:,:) ::  SigmaRi, SigmaLi, SigmaGi
+    complex*16, allocatable, dimension(:,:) :: Sigma1
+    
+    
+    allocate(Sigma1(Natoms, Natoms))
+    allocate(SigmaRi(Natoms, Natoms, N_of_W)); allocate(SigmaLi(Natoms, Natoms, N_of_w)); allocate(SigmaGi(Natoms, Natoms, N_of_w))
+    
+    !............full SigmaR due to interactions Eq. (7)
+    SigmaR = (0.d0, 0.d0); SigmaL= (0.d0, 0.d0); SigmaG = (0.d0, 0.d0)
+    
+    iteration = 0
+    
+    write(*,*) '........SCF Calculations at Voltage:', Volt, '..........'
+    
+    call G0_R_A()
+    call G0_L_G(Volt)
+    
+    DO
+       iteration = iteration + 1
+       write(*,*) '.... ITERATION = ',iteration,' ....'
+       
+       call GL_of_0()
+       
+       call all_sigmas(SigmaRi, SigmaLi, SigmaGi, Sigma1)
 
-  1 iteration = 0
+        !...Simple Pulay mixing scheme for Sigmas     
+       SigmaR = pulay*SigmaRi + (1.d0 - pulay)*SigmaR
+       SigmaL = pulay*SigmaLi + (1.d0 - pulay)*SigmaL
+       !SigmaG = pulay*SigmaGi + (1.d0 - pulay)*SigmaG
 
-  write(22,*) '........SCF Calculations at Voltage:', Volt, '..........'
+       call G_full(Volt)
+       
+       err=0.0d0
+       do iw = 1, N_of_w
+          do i=1,Natoms
+             diff=(SigmaR(i,i,iw))-(SigmaRi(i,i,iw))
+             err=err +diff*diff
+          end do
+       end do
+       write(*,*) 'err = ',sqrt(err)
 
-  if (first) then 
-     call G0_R_A()
-     call G0_L_G(Volt)
-  end if
-
-  print *, '>>>>>>>>>>VOLTAGE:', Volt
-
-  Vname = abs(Volt)
-  write(fn1,'(i0)') Vname
-  if (Volt .ge. 0) then 
-     open(17,file='err_V_'//trim(fn1)//'.dat',status='unknown')
-  else
-     open(17,file='err_V_n'//trim(fn1)//'.dat',status='unknown')
-  end if
-!.... initialise the wheel: this is position on the wheel for the curent GFs
-!                           to be placed
-  GP%r_in=(0.0d0,0.0d0) ; GP%r_out=(0.0d0,0.0d0) ; Ov=0.0d0
-  
-  DO
-     iteration = iteration + 1
-     write(*,*) '.... ITERATION = ',iteration,' ....'
-
-!.......real variable interactions turns off the Interaction component of the sigmas 
-!.................full Gr and Ga, Eq. (5) and (6)
-
-     call GL_of_0()
-
-     !$OMP PARALLEL DO &
-     !$OMP& PRIVATE(iw, INFO)
-     
-     do iw = 1, N_of_w
-        call G_full(iw, Volt)
-     end do
-     !$OMP END PARALLEL DO
-
-!
-!==========================............... one step Pulay.........===========
-!
-     if(method.eq.1) then
-
-        GF0%r = pulay*GFf%r + (1.0d0-pulay)*GF0%r
-        GF0%l = pulay*GFf%l + (1.0d0-pulay)*GF0%l
-
-!
-!==========================............. many steps Pulay.........===========
-!
-     else if(method.eq.2) then
-        
-!....... place the GFf%r_in/out into the wheel
-     
-        IF(iteration.eq.1) THEN
-        
-           GP%r_in(:,:,:,1)=GF0%r
-           GF0%r = pulay*GFf%r + (1.0d0-pulay)*GF0%r
-           GF0%l = pulay*GFf%l + (1.0d0-pulay)*GF0%l
-           GP%r_out(:,:,:,1)=GF0%r ; GP%l_out(:,:,:,1)=GF0%l
-           
-           size=1
-           call overlap(1,1)
-           
-        ELSE IF(iteration.eq.2) THEN
-           
-           GP%r_in(:,:,:,2)=GFf%r
-           GF0%r = pulay*GFf%r + (1.0d0-pulay)*GF0%r
-           GF0%l = pulay*GFf%l + (1.0d0-pulay)*GF0%l
-           GP%r_out(:,:,:,2)=GF0%r ; GP%l_out(:,:,:,2)=GF0%l
-           
-           size=2
-           call overlap(2,2) ; call overlap(2,1) ; Ov(1,2)=Ov(2,1)
-           
-        ELSE IF(iteration.le.iP) THEN
-
-!_________ get c-coefficients from the previous Ov matrix        
-
-           call C_coefficients()
-
-!_________ update GF0%r and GF0%l (out) by mixing with the previos iterations
-
-           GP%r_in(:,:,:,iteration)=GFf%r
-           GF0%r=pulay*GFf%r ; GF0%l=pulay*GFf%l
-           do it=1,iteration-1
-              GF0%r=GF0%r+(1-pulay)*C_coeff(it)*GP%r_out(:,:,:,it)
-              GF0%l=GF0%l+(1-pulay)*C_coeff(it)*GP%l_out(:,:,:,it)
-           end do
-           GP%r_out(:,:,:,iteration)=GF0%r ; GP%l_out(:,:,:,iteration)=GF0%l
-        
-!_________ updting the ov matrix for the next iteration       
-
-           size=iteration
-           call overlap(iteration,iteration) 
-           do i=1,iteration-1
-              call overlap(iteration,i) ; Ov(i,iteration)=Ov(iteration,i)
-           end do
-        
-        ELSE IF(iteration.gt.iP) THEN
-           
-           call C_coefficients()
-
-           wheel=mod(iteration,iP) ; if(wheel.eq.0) wheel=iP
-        
-!_________ update GF0%r and GF0%l (out) by mixing with the previos iterations
-
-           GP%r_in(:,:,:,wheel)=GFf%r
-           GF0%r=pulay*GFf%r ; GF0%l=pulay*GFf%l
-           do it=1,iP
-              GF0%r=GF0%r+(1-pulay)*C_coeff(it)*GP%r_out(:,:,:,it)
-              GF0%l=GF0%l+(1-pulay)*C_coeff(it)*GP%l_out(:,:,:,it)
-           end do
-           GP%r_out(:,:,:,wheel)=GF0%r ; GP%l_out(:,:,:,wheel)=GF0%l
-        
-!_________ updating the ov matrix for the next iteration       
-
-           size=iP
-           call overlap(wheel,wheel)
-           do i=1,iP
-              if(i.ne.wheel) then
-                 call overlap(wheel,i) ; Ov(i,wheel)=Ov(wheel,i)
-              end if
-           end do
-        
-        END IF
-
-     end if
-     
-!...... do the advanced and greater components
-     
-     do iw=1,N_of_w
-        work1=GF0%r(:,:,iw) 
-        call Hermitian_Conjg(work1, Natoms, work2)
-        GF0%a(:,:,iw)=work2
-     end do
-     GF0%G = GF0%L + GF0%R - GF0%A
-
-!..... calculation of the error     
-
-     err=0.0d0
-     do iw = 1, N_of_w
-        do i=1,Natoms
-           diff=2.d0*hbar*(AIMAG(GFf%R(i,i,iw))-AIMAG(GF0%R(i,i,iw)))
-           err=err +diff*diff
-        end do
-     end do
-     write(*,*) 'err = ',sqrt(err)
-
-!____________ useful if one would like to check the convergence     
-     !     write(13,*) iteration, current(Volt)
-
+       if (err .le. epsilon .or. order .eq. 0) then
+       write(*,*)'... REACHED REQUIRED ACCURACY ...'
+       exit
+    end if
+    
+ end DO
  
-     if (sqrt(err) .lt. epsilon .or. order .eq. 0) then
-        write(*,*)'... REACHED REQUIRED ACCURACY ...'
-        exit
-     end if
-     
-     if (iteration .gt. 1) then
-        pulay = pulay - 0.1
-        write(*,*) 'Restart at iteration:', iteration
-        write(*,*) 'Pulay:', Pulay
-        go to 1
-     else if (iteration .gt. 3 .and. pulay .le. 0.1) then
-        write(*,*) 'No Convergence'
-        STOP
-     end if
-     
-  END DO
-  close(17)
-end subroutine SCF_GFs
+ deallocate(SigmaLi, SigmaRi, SigmaGi, Sigma1)
+end subroutine SCF_Calc
 
+subroutine all_sigmas(SigmaRi, SigmaLi, SigmaGi, Sigma1)
+  implicit none
+  integer :: i, j, iw, sp, sp1, ii, jj
+  complex*16 :: SigL, SigG, Omr
+  complex*16 ::  SigmaRi(:,:,:), SigmaLi(:,:,:), SigmaGi(:,:,:)
+  complex*16 :: Sigma1(:,:)
+
+  SigmaRi = (0.d0, 0.d0); SigmaLi = (0.d0, 0.d0); SigmaGi = (0.d0, 0.d0)
+     !.....Calculate Sigmas      
+       do iw = 1, N_of_w
+          
+          if (order .eq. 1) then
+             call first_order_sigma(Sigma1)
+             SigmaRi(:,:,iw) = Sigma1
+          else if (order .eq. 2) then
+             call first_order_sigma(Sigma1)
+             
+             do i = 1, Natoms, 2
+                do sp = 0, 1
+                   ii = i +sp
+                   
+                   do j = 1, Natoms, 2
+                      do sp1 = 0, 1
+                         jj= j + sp1
+                         
+                         Omr = Omega_r(i,j,sp,sp1,iw)
+                         SigmaRi(ii,jj,iw) =  Sigma1(ii,jj) + (Hub(j)*Hub(i)*OmR)*hbar**2
+                         
+                      end do
+                   end do
+                   
+                end do
+             end do
+             
+             !..............full SigmaL, Eq. (3) and (4)     
+             !.....Interaction contribution of both Sigmas     
+             
+             do i = 1, Natoms, 2
+                do sp = 0, 1
+                   ii = i +sp
+                   
+                   do j = 1, Natoms, 2
+                      do sp1 = 0, 1
+                         jj= j + sp1                 
+                         
+                         call int_SigLnG(i,j, sp, sp1, iw, SigL, SigG)
+                         SigmaLi(ii,jj,iw) = Hub(j)*Hub(i)*SigL*hbar**2
+                        ! SigmaGi(ii,jj,iw) = Hub(j)*Hub(i)*SigG*hbar**2
+                         
+                      end do
+                   end do
+                   
+                end do
+             end do
+            
+       end if
+    end do
+     
+  end subroutine all_sigmas
 
 !=====================================================
 !================== Full GFs =========================
-!===================================================== 
-
-subroutine G_full(iw, Volt) !... Full Greens function, leaves Retarded and Advanced in the work arrays, application of Eq. (16) and (17), but with the full Sigmas, Eq. (3), (7) and (8) in CHE
+!=====================================================
+  
+!.............need G0f%L to calculate GL_of_0
+!.............Calculates GFs at every omega and Voltage simultaneously
+subroutine G_full(Volt) !... Full Greens function, leaves Retarded and Advanced in the work arrays, application of Eq. (16) and (17), but with the full Sigmas, Eq. (3), (7) and (8) in CHE
   implicit none
   integer :: i, j, iw, sp, sp1, ii, jj, N
   real*8 :: Volt, w 
   complex*16 :: SigL, SigG, Omr
-  complex*16, allocatable, dimension(:,:) ::  SigmaL, Sigma1, SigmaR, SigmaG,  w1, w2
-
-  allocate(SigmaL(Natoms, Natoms), SigmaR(Natoms, Natoms), SigmaG(Natoms, Natoms), Sigma1(Natoms, Natoms))
-  allocate(w1(Natoms, Natoms), w2(Natoms, NAtoms))
-  !............full SigmaR due to interactions Eq. (7)
-  SigmaR = (0.d0, 0.d0); SigmaL = (0.d0, 0.d0); SigmaG = (0.d0, 0.d0)
-  
-  if (order .eq. 1) then
-     call first_order_sigma(Sigma1)
-     SigmaR = Sigma1
-  else if (order .eq. 2) then
-     call first_order_sigma(Sigma1)
-
-     do i = 1, Natoms, 2
-        do sp = 0, 1
-           ii = i +sp
-           
-           do j = 1, Natoms, 2
-              do sp1 = 0, 1
-                 jj= j + sp1
-                 
-                 Omr = Omega_r(i,j,sp,sp1,iw)
-                 SigmaR(ii,jj) =  Sigma1(ii,jj)  + (Hub(j)*Hub(i)*OmR)*hbar**2
-                 
-              end do
-           end do
-           
-        end do
-     end do
- 
-     !..............full SigmaL, Eq. (3) and (4)     
-     !.....Interaction contribution of both Sigmas     
-
-     do i = 1, Natoms, 2
-        do sp = 0, 1
-           ii = i +sp
-           
-           do j = 1, Natoms, 2
-              do sp1 = 0, 1
-                 jj= j + sp1                 
-
-                 call int_SigLnG(i,j, sp, sp1, iw, SigL, SigG)
-                 SigmaL(ii,jj) = Hub(j)*Hub(i)*SigL*hbar**2
-                 SigmaG(ii,jj) = Hub(j)*Hub(i)*SigG*hbar**2
-                 
-              end do
-           end do
-           
-        end do
-     end do
-  end if
   
   !............full Gr and Ga, Eq. (5) and (6)
-  
-  w = omega(iw)
-  w1 = -H + 0.5d0*(im/hbar)*(GammaL + GammaR) - SigmaR ! LK <== must be + for emb and minus for interaction sigma
-  do i = 1 , Natoms
-     w1(i,i) = w1(i,i) + hbar*(w+im*0.01)
-  end do
-  
-  call Inverse_complex(Natoms, w1, info)
-  call Hermitian_Conjg(w1, Natoms, w2)
-  
-  GFf%R(:,:,iw) = w1; GFf%A(:,:,iw) = w2
 
+  do iw = 1, N_of_w
+     w = omega(iw)
+     work1 = -H + 0.5d0*(im/hbar)*(GammaL + GammaR) - SigmaR(:,:,iw) ! LK <== must be + for emb and minus for interaction sigma
+     do i = 1 , Natoms
+        work1(i,i) = work1(i,i) + hbar*w!(w+im*0.01)
+     end do
+     
+     call Inverse_complex(Natoms, work1, info)
+     call Hermitian_Conjg(work1, Natoms, work2)
+     GF0%r(:,:,iw) = work1; GF0%a(:,:,iw) = work2
+     
 !.....Embedding contribution of both Sigmas
+ 
+     !.............full GL and GG, Eq. (16) and (17)
+     GF0%l(:,:,iw) = matmul(matmul(GF0%r(:,:,iw), (im*(fermi_dist(w, Volt)*GammaL + fermi_dist(w, 0.d0)*GammaR)/hbar) +SigmaL(:,:,iw)), GF0%a(:,:,iw)) !.. GL = Gr * SigmaL * Ga     
 
-  SigmaL =  im*(fermi_dist(w, Volt)*GammaL + fermi_dist(w, 0.d0)*GammaR)/hbar + SigmaL 
-  SigmaG =  im*((fermi_dist(w, Volt)-1.d0)*GammaL + (fermi_dist(w, 0.d0)-1.d0)*GammaR)/hbar + SigmaG
+  !   GF0%g(:,:,iw) = matmul(matmul(GF0%r(:,:,iw), (im*((fermi_dist(w, Volt)-1.d0)*GammaL + (fermi_dist(w, 0.d0)-1.d0)*GammaR)/hbar) +SigmaG(:,:,iw)), GF0%a(:,:,iw)) !.. GG = Gr * SigmaG * Ga
 
-  !.............full GL and GG, Eq. (16) and (17)
-  
-  GFf%L(:,:,iw) = matmul(matmul(w1, SigmaL), w2) !.. GL = Gr * SigmaL * Ga
- ! GFf%G(:,:,iw) = matmul(matmul(w1, SigmaG), w2) !.. GG = Gr * SigmaG * Ga
-  GFf%G(:,:,iw) = GFf%L(:,:,iw) + GFf%R(:,:,iw) - GFf%A(:,:,iw)
-
-  deallocate(SigmaL, Sigma1, SigmaR, SigmaG,  w1, w2)
+      GF0%g(:,:,iw) = GF0%l(:,:,iw) + GF0%r(:,:,iw) - GF0%a(:,:,iw)
+  end do
 end subroutine G_full
 
 !=====================================================
@@ -359,7 +230,7 @@ subroutine G0_R_A()
        work1 = -H + 0.5d0*(im/hbar) * (GammaL + GammaR) !LK <========= must be +
        w = omega(j)
        do i = 1 , Natoms
-          work1(i,i) = work1(i,i) + hbar*(w +im*0.01)
+          work1(i,i) = work1(i,i) + hbar*w!(w +im*0.01)
         end do
        
        call Inverse_complex(Natoms, work1, info)
@@ -384,15 +255,15 @@ end subroutine G0_R_A
        work2 = GF0%a(:,:,j)
 
        work3 = matmul(matmul(work1, im*(fermi_dist(w, Volt)*GammaL + fermi_dist(w, 0.d0)*GammaR)), work2) 
-       work4 = matmul(matmul(work1, im*((fermi_dist(w, Volt)-1.d0)*GammaL + (fermi_dist(w, 0.d0)-1.d0)*GammaR)), work2)
+      ! work4 = matmul(matmul(work1, im*((fermi_dist(w, Volt)-1.d0)*GammaL + (fermi_dist(w, 0.d0)-1.d0)*GammaR)), work2)
        GF0%L(:,:,j) = work3
-       GF0%G(:,:,j) = work4
-       !GF0%G(:,:,j) =  GF0%L(:,:,j) + GF0%R(:,:,j) - GF0%A(:,:,j)
+       !GF0%G(:,:,j) = work4
+       GF0%G(:,:,j) =  GF0%L(:,:,j) + GF0%R(:,:,j) - GF0%A(:,:,j)
     end do
   end subroutine G0_L_G 
 
 !=====================================================
-!========Calcualtions needed for full GFs=============
+!========Calcualtions needed for full GFs=========== ==
 !=====================================================
 
   subroutine first_order_sigma(Sigma1)
@@ -418,9 +289,8 @@ end subroutine G0_R_A
        end do
        
     end do
-
-end subroutine first_order_sigma
-
+    
+  end subroutine first_order_sigma
 !......................Calculation of Omega terms for the self-energies, Eq. (9) in CHE
 complex*16 function Omega_r(i, j, sp, sp1, iw)
   implicit none
@@ -441,9 +311,9 @@ complex*16 function Omega_r(i, j, sp, sp1, iw)
                  m = i+s1; n= j+s
                  !.....both second order diagram contributions
                  !_________ 3rd diagram
-                 Omr = Omr + GF0%r(ii,jj,k_1)*GF0%L(m,n,k_2)*GF0%G(n,m,k_3) & 
-                      + GF0%L(ii,jj,k_1)*GF0%L(m,n,k_2)*GF0%r(n,m,k_3) & 
-                      + GF0%L(ii,jj,k_1)*GF0%a(m,n,k_2)*GF0%L(n,m,k_3) &
+                 Omr = Omr + GF0%r(ii,jj,k_1)*GF0%L(n,m,k_2)*GF0%G(m,n,k_3) & 
+                      + GF0%L(ii,jj,k_1)*GF0%L(n,m,k_2)*GF0%r(m,n,k_3) & 
+                      + GF0%L(ii,jj,k_1)*GF0%a(n,m,k_2)*GF0%L(m,n,k_3) &
                       
                       - GF0%r(ii,n,k_1)*GF0%L(n,m,k_2)*GF0%G(m,jj,k_3) &
                       - GF0%L(ii,n,k_1)*GF0%L(n,m,k_2)*GF0%r(m,jj,k_3) &
@@ -480,7 +350,7 @@ subroutine int_SigLnG(i,j,sp,sp1,iw,SigL,SigG) !... interaction contributions of
               do s1 = 0, 1
                  m = i+s1; n= j+s
                  
-                 SigL = SigL + GF0%L(ii,jj,k1)*GF0%G(m,n,k2)*GF0%L(n,m,k3) &
+                 SigL = SigL + GF0%L(ii,jj,k1)*GF0%G(n,m,k2)*GF0%L(m,n,k3) &
                       - GF0%L(ii,n,k1)*GF0%G(n,m,k2)*GF0%L(m,jj,k3) 
                       
                 
@@ -497,70 +367,4 @@ subroutine int_SigLnG(i,j,sp,sp1,iw,SigL,SigG) !... interaction contributions of
   SigL = SigL*pp*pp ; SigG = SigG*pp*pp
 end subroutine int_SigLnG
 
-
-!====================================================
-!========== Pulay's Routines ========================
-!====================================================
-
-subroutine overlap(i,j)
-  integer :: i,j,i1,iw
-  real*8 :: ci,cj,oo,pp
-
-  oo=(0.0d0,0.0d0)
-  do i1=1,Natoms
-     do iw=1,N_of_w
-        ci=aimag(GP%r_in(i1,i1,iw,i)-GP%r_out(i1,i1,iw,i))
-        cj=aimag(GP%r_in(i1,i1,iw,j)-GP%r_out(i1,i1,iw,j))
-        oo = oo + ci*cj
-     end do
-  end do
-  pp = delta/(2.d0*pi) 
-  Ov(i,j)=oo*pp
-  
-end subroutine overlap
-
-subroutine C_coefficients()
-  integer :: i,j,N,INFO
-  real*8 :: s(10)
-
-  N=size+1
-  allocate(Bm(N,N))
-
-  Bm(1:size,1:size)=Ov ; Bm(N,N)=0.0d0
-  do i=1,size
-     Bm(i,N)=-1.0d0 ;  Bm(N,i)=-1.0d0
-  end do
-  Rhs(1:size,1)=0.0d0 ; Rhs(N,1)=-1.0d0
-
-!...... calling linear system of eqs: Bm * X = Rhs, 
-!       where on output X is in Rhs and Bm destroyed
-
-  call dgesv(N,1,Bm,N,IPIV,Rhs,N,INFO)
-
-!.... solution
-
-  C_coeff(1:size)=Rhs(1:size,1)
-  deallocate(Bm)
-
-end subroutine C_coefficients
-
-!====================================================
-!========== restart routines  =======================
-!====================================================
-
-subroutine save_GFs()
-  implicit none
-  open(1,file='Greens_functions.dat',form='unformatted',status='unknown')
-  write(1) GF0%r,GF0%a,GF0%l,GF0%g
-  close(1)
-end subroutine save_GFs
-
-subroutine read_saved_GFs()
-  implicit none
-  open(1,file='Greens_functions.dat',form='unformatted',status='old')
-  read(1) GF0%r,GF0%a,GF0%l,GF0%g
-  close(1)
-end subroutine read_saved_GFs
-
 end module GreensFunctions
- 
