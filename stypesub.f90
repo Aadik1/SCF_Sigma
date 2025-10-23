@@ -138,13 +138,13 @@ subroutine Current(Volt, J_up, J_down)
   J_up = 0.d0; J_down = 0.d0
 
   call SCF_Calc(Volt)
-  
+
   do iw = 1, N_of_w
      call trans(iw, Volt, trans_up, trans_down)
      J_up = J_up + trans_up
      J_down = J_down + trans_down
   end do
-  
+
   J_up = J_up*(delta/hbar)
   J_down = J_down*(delta/hbar)
   

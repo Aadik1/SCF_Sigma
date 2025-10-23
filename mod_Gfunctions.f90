@@ -42,12 +42,12 @@ contains
     implicit none
     integer :: i, iw, iteration
     real*8 :: Volt, w, err, diff
-    complex*16, allocatable, dimension(:,:,:) ::  SigmaRi, SigmaLi, SigmaGi
+    complex*16, allocatable, dimension(:,:,:) ::  SigmaRi, SigmaLi
     complex*16, allocatable, dimension(:,:) :: Sigma1
     
     
     allocate(Sigma1(Natoms, Natoms))
-    allocate(SigmaRi(Natoms, Natoms, N_of_W)); allocate(SigmaLi(Natoms, Natoms, N_of_w)); allocate(SigmaGi(Natoms, Natoms, N_of_w))
+    allocate(SigmaRi(Natoms, Natoms, N_of_W)); allocate(SigmaLi(Natoms, Natoms, N_of_w))
     
     !............full SigmaR due to interactions Eq. (7)
     SigmaR = (0.d0, 0.d0); SigmaL= (0.d0, 0.d0); SigmaG = (0.d0, 0.d0)
@@ -65,14 +65,19 @@ contains
        
        call GL_of_0()
        
-       call all_sigmas(SigmaRi, SigmaLi, SigmaGi, Sigma1)
+       call all_sigmas(SigmaRi, SigmaLi, Sigma1)
 
         !...Simple Pulay mixing scheme for Sigmas     
        SigmaR = pulay*SigmaRi + (1.d0 - pulay)*SigmaR
        SigmaL = pulay*SigmaLi + (1.d0 - pulay)*SigmaL
-       !SigmaG = pulay*SigmaGi + (1.d0 - pulay)*SigmaG
-
-       call G_full(Volt)
+       
+       
+       !$OMP PARALLEL DO &
+       !$OMP& PRIVATE(iw, INFO)
+       do iw = 1, N_of_w 
+          call G_full(iw, Volt)
+       end do
+       !$OMP END PARALLEL DO
        
        err=0.0d0
        do iw = 1, N_of_w
@@ -90,17 +95,21 @@ contains
     
  end DO
  
- deallocate(SigmaLi, SigmaRi, SigmaGi, Sigma1)
+ deallocate(SigmaLi, SigmaRi, Sigma1)
 end subroutine SCF_Calc
 
-subroutine all_sigmas(SigmaRi, SigmaLi, SigmaGi, Sigma1)
+subroutine all_sigmas(SigmaRi, SigmaLi, Sigma1)
   implicit none
   integer :: i, j, iw, sp, sp1, ii, jj
   complex*16 :: SigL, SigG, Omr
-  complex*16 ::  SigmaRi(:,:,:), SigmaLi(:,:,:), SigmaGi(:,:,:)
+  complex*16 ::  SigmaRi(:,:,:), SigmaLi(:,:,:)
   complex*16 :: Sigma1(:,:)
 
-  SigmaRi = (0.d0, 0.d0); SigmaLi = (0.d0, 0.d0); SigmaGi = (0.d0, 0.d0)
+  SigmaRi = (0.d0, 0.d0); SigmaLi = (0.d0, 0.d0)
+  
+  !$OMP PARALLEL DO &
+  !$OMP& PRIVATE(i,j,sp,sp1,ii,jj,Omr,SigL,SigG,Sigma1) 
+  
      !.....Calculate Sigmas      
        do iw = 1, N_of_w
           
@@ -140,7 +149,6 @@ subroutine all_sigmas(SigmaRi, SigmaLi, SigmaGi, Sigma1)
                          
                          call int_SigLnG(i,j, sp, sp1, iw, SigL, SigG)
                          SigmaLi(ii,jj,iw) = Hub(j)*Hub(i)*SigL*hbar**2
-                        ! SigmaGi(ii,jj,iw) = Hub(j)*Hub(i)*SigG*hbar**2
                          
                       end do
                    end do
@@ -150,7 +158,7 @@ subroutine all_sigmas(SigmaRi, SigmaLi, SigmaGi, Sigma1)
             
        end if
     end do
-     
+    !$OMP END PARALLEL DO   
   end subroutine all_sigmas
 
 !=====================================================
@@ -159,34 +167,32 @@ subroutine all_sigmas(SigmaRi, SigmaLi, SigmaGi, Sigma1)
   
 !.............need G0f%L to calculate GL_of_0
 !.............Calculates GFs at every omega and Voltage simultaneously
-subroutine G_full(Volt) !... Full Greens function, leaves Retarded and Advanced in the work arrays, application of Eq. (16) and (17), but with the full Sigmas, Eq. (3), (7) and (8) in CHE
+subroutine G_full(iw, Volt) !... Full Greens function, leaves Retarded and Advanced in the work arrays, application of Eq. (16) and (17), but with the full Sigmas, Eq. (3), (7) and (8) in CHE
   implicit none
   integer :: i, j, iw, sp, sp1, ii, jj, N
   real*8 :: Volt, w 
-  complex*16 :: SigL, SigG, Omr
-  
+  complex*16, allocatable, dimension(:,:) :: work_1, work_2
   !............full Gr and Ga, Eq. (5) and (6)
 
-  do iw = 1, N_of_w
-     w = omega(iw)
-     work1 = -H + 0.5d0*(im/hbar)*(GammaL + GammaR) - SigmaR(:,:,iw) ! LK <== must be + for emb and minus for interaction sigma
-     do i = 1 , Natoms
-        work1(i,i) = work1(i,i) + hbar*w!(w+im*0.01)
-     end do
-     
-     call Inverse_complex(Natoms, work1, info)
-     call Hermitian_Conjg(work1, Natoms, work2)
-     GF0%r(:,:,iw) = work1; GF0%a(:,:,iw) = work2
-     
-!.....Embedding contribution of both Sigmas
- 
-     !.............full GL and GG, Eq. (16) and (17)
-     GF0%l(:,:,iw) = matmul(matmul(GF0%r(:,:,iw), (im*(fermi_dist(w, Volt)*GammaL + fermi_dist(w, 0.d0)*GammaR)/hbar) +SigmaL(:,:,iw)), GF0%a(:,:,iw)) !.. GL = Gr * SigmaL * Ga     
+  allocate(work_1(Natoms, Natoms), work_2(Natoms, Natoms))
 
-  !   GF0%g(:,:,iw) = matmul(matmul(GF0%r(:,:,iw), (im*((fermi_dist(w, Volt)-1.d0)*GammaL + (fermi_dist(w, 0.d0)-1.d0)*GammaR)/hbar) +SigmaG(:,:,iw)), GF0%a(:,:,iw)) !.. GG = Gr * SigmaG * Ga
-
-      GF0%g(:,:,iw) = GF0%l(:,:,iw) + GF0%r(:,:,iw) - GF0%a(:,:,iw)
+  w = omega(iw)
+  work_1 = -H + 0.5d0*(im/hbar)*(GammaL + GammaR) - SigmaR(:,:,iw) ! LK <== must be + for emb and minus for interaction sigma
+  do i = 1 , Natoms
+     work_1(i,i) = work_1(i,i) + hbar*w !(w+im*0.01)
   end do
+  
+  call Inverse_complex(Natoms, work_1, info)
+  call Hermitian_Conjg(work_1, Natoms, work_2)
+  
+  GF0%r(:,:,iw) = work_1; GF0%a(:,:,iw) = work_2
+  !.....Embedding contribution of both Sigmas
+  
+  !.............full GL and GG, Eq. (16) and (17)
+  GF0%l(:,:,iw) = matmul(matmul(GF0%r(:,:,iw), (im*(fermi_dist(w, Volt)*GammaL + fermi_dist(w, 0.d0)*GammaR)/hbar) +SigmaL(:,:,iw)), GF0%a(:,:,iw)) !.. GL = Gr * SigmaL * Ga     
+  GF0%g(:,:,iw) = GF0%l(:,:,iw) + GF0%r(:,:,iw) - GF0%a(:,:,iw)
+  
+  deallocate(work_1, work_2)   
 end subroutine G_full
 
 !=====================================================

@@ -2,7 +2,7 @@ T = 300.d0
 V = -0.50d0
 Vf = 0.5d0
 delv = 0.05
-mu = 0.5
+mu =2
 
 N_ions = 2
 N_turns = 1
@@ -17,7 +17,7 @@ up = 10.0
 delta = 0.1
 
 method = 1
-pulay = 0.9d0
+pulay = 1.d0
 iP = 6
 restart = F
 
