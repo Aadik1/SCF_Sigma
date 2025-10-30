@@ -90,6 +90,7 @@ contains
        
        if (err .le. epsilon .or. order .eq. 0) then
           write(*,*)'... REACHED REQUIRED ACCURACY ...'
+          call save_GFs()
           exit
        end if
        
@@ -373,5 +374,12 @@ subroutine int_SigLnG(i,j,sp,sp1,iw,SigL,SigG) !... interaction contributions of
   pp = delta/(2.d0*pi)
   SigL = SigL*pp*pp ; SigG = SigG*pp*pp
 end subroutine int_SigLnG
+
+subroutine save_GFs()
+  implicit none
+  open(1,file='Greens_functions.dat',form='unformatted',status='unknown')
+  write(1) GF0%r,GF0%a,GF0%l,GF0%g
+  close(1)
+end subroutine save_GFs
 
 end module GreensFunctions
