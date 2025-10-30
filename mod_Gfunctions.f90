@@ -66,8 +66,8 @@ contains
        call GL_of_0()
        
        call all_sigmas(SigmaRi, SigmaLi, Sigma1)
-
-        !...Simple Pulay mixing scheme for Sigmas     
+       
+       !...Simple Pulay mixing scheme for Sigmas     
        SigmaR = pulay*SigmaRi + (1.d0 - pulay)*SigmaR
        SigmaL = pulay*SigmaLi + (1.d0 - pulay)*SigmaL
        
@@ -87,16 +87,16 @@ contains
           end do
        end do
        write(*,*) 'err = ',sqrt(err)
-
+       
        if (err .le. epsilon .or. order .eq. 0) then
-       write(*,*)'... REACHED REQUIRED ACCURACY ...'
-       exit
-    end if
+          write(*,*)'... REACHED REQUIRED ACCURACY ...'
+          exit
+       end if
+       
+    end DO
     
- end DO
- 
- deallocate(SigmaLi, SigmaRi, Sigma1)
-end subroutine SCF_Calc
+    deallocate(SigmaLi, SigmaRi, Sigma1)
+  end subroutine SCF_Calc
 
 subroutine all_sigmas(SigmaRi, SigmaLi, Sigma1)
   implicit none
@@ -189,7 +189,8 @@ subroutine G_full(iw, Volt) !... Full Greens function, leaves Retarded and Advan
   !.....Embedding contribution of both Sigmas
   
   !.............full GL and GG, Eq. (16) and (17)
-  GF0%l(:,:,iw) = matmul(matmul(GF0%r(:,:,iw), (im*(fermi_dist(w, Volt)*GammaL + fermi_dist(w, 0.d0)*GammaR)/hbar) +SigmaL(:,:,iw)), GF0%a(:,:,iw)) !.. GL = Gr * SigmaL * Ga     
+  GF0%l(:,:,iw) = matmul(matmul(GF0%r(:,:,iw), (im*(fermi_dist(w, Volt)*GammaL + fermi_dist(w, 0.d0)*GammaR)/hbar) &
+       +SigmaL(:,:,iw)), GF0%a(:,:,iw)) !.. GL = Gr * SigmaL * Ga     
   GF0%g(:,:,iw) = GF0%l(:,:,iw) + GF0%r(:,:,iw) - GF0%a(:,:,iw)
   
   deallocate(work_1, work_2)   
