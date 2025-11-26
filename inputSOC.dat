@@ -1,10 +1,10 @@
 T = 300.d0
-V = -0.50d0
-Vf = 0.5d0
+V = -1.d0
+Vf = 1.0d0
 delv = 0.05
 mu =2
 
-N_ions = 2
+N_ions = 3
 N_turns = 1
 hel_length = 1.d0
 hel_radius = 1.d0
@@ -12,9 +12,9 @@ hand = 1
    
 order = 2
 
-dw = 10.0
-up = 10.0
-delta = 0.1
+dw = 5
+up = 5
+delta = 0.05
 
 method = 1
 pulay = 1.d0
@@ -23,8 +23,8 @@ restart = F
 
 E_CC = 2.d0	
 t_hop = -1.d0
-lamb = 0.d0
+lamb = 0.001d0
 Hubbard = 1.d0
 
 Gamma = 1.d0
-del_Gamma = 0.d0
+del_Gamma = 0.0d0

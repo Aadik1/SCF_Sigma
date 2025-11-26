@@ -55,7 +55,7 @@ subroutine input_SOC()
   Volt_range = (Vf - V)/delv
  
   write(*,*) 'T:', T, 'V:', V, 'mu:', mu, 'Volt_range:', Volt_range, 'Hubbard:', Hubbard
-  write(*,*) 'Order:', order, 'Natoms:', Natoms
+  write(*,*) 'Order:', order, '  # of site:', Natoms/2
   write(*,*) 'delta:', delta
   write(*,*) 'pulay:', pulay
 
