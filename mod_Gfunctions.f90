@@ -10,18 +10,15 @@ module GreensFunctions
   
   complex*16, allocatable, dimension(:,:) :: GammaL, GammaR, Eigenvec, G_nil
   complex*16, allocatable, dimension(:,:,:) ::  SigmaL, SigmaR, SigmaG
-  complex*16, allocatable, dimension(:,:) :: work1, work2, work3, work4
+  complex*16, allocatable, dimension(:,:) :: work1, work2, work3, work4, S_a
   
-  type :: GF
-     complex*16, allocatable, dimension(:,:,:) :: r, a, L, G
-  end type GF
-  type(GF) :: GF0
-  
-  type :: GF_full
-     complex*16, allocatable, dimension(:,:,:) :: R, A, L, G
-  end type GF_full
-  type(GF_full) :: GFf
+  type :: GFunc
+     complex*16, allocatable, dimension(:,:,:) :: r, a, L, G, old
+  end type GFunc
+  type(GFunc) :: GF
 
+  logical :: first
+  
 contains 
   
    !.....fermi-dirac distribution
@@ -45,7 +42,6 @@ contains
     complex*16, allocatable, dimension(:,:,:) ::  SigmaRi, SigmaLi
     complex*16, allocatable, dimension(:,:) :: Sigma1
     
-    
     allocate(Sigma1(Natoms, Natoms))
     allocate(SigmaRi(Natoms, Natoms, N_of_W)); allocate(SigmaLi(Natoms, Natoms, N_of_w))
     
@@ -55,22 +51,24 @@ contains
     iteration = 0
     
     write(*,*) '........SCF Calculations at Voltage:', Volt, '..........'
-    
-    call G0_R_A()
-    call G0_L_G(Volt)
+
+    if (first) then 
+       call G0_R_A()
+       call G0_L_G(Volt)
+       GF%old = GF%R
+    end if
     
     DO
        iteration = iteration + 1
        write(*,*) '.... ITERATION = ',iteration,' ....'
-       
+   
        call GL_of_0()
        
        call all_sigmas(SigmaRi, SigmaLi, Sigma1)
-       
+
        !...Simple Pulay mixing scheme for Sigmas     
        SigmaR = pulay*SigmaRi + (1.d0 - pulay)*SigmaR
        SigmaL = pulay*SigmaLi + (1.d0 - pulay)*SigmaL
-       
        
        !$OMP PARALLEL DO &
        !$OMP& PRIVATE(iw, INFO)
@@ -78,15 +76,17 @@ contains
           call G_full(iw, Volt)
        end do
        !$OMP END PARALLEL DO
-       
+
        err=0.0d0
        do iw = 1, N_of_w
-          do i=1,Natoms
-             diff=(SigmaR(i,i,iw))-(SigmaRi(i,i,iw))
+          do i=1,Natoms, 2
+             diff=2.d0*hbar*(AIMAG(GF%R(i,i,iw))-AIMAG(GF%old(i,i,iw)))
              err=err +diff*diff
           end do
        end do
        write(*,*) 'err = ',sqrt(err)
+
+       GF%old = GF%R
        
        if (err .le. epsilon .or. order .eq. 0) then
           write(*,*)'... REACHED REQUIRED ACCURACY ...'
@@ -185,13 +185,13 @@ subroutine G_full(iw, Volt) !... Full Greens function, leaves Retarded and Advan
   call Inverse_complex(Natoms, work_1, info)
   call Hermitian_Conjg(work_1, Natoms, work_2)
   
-  GF0%r(:,:,iw) = work_1; GF0%a(:,:,iw) = work_2
+  GF%r(:,:,iw) = work_1; GF%a(:,:,iw) = work_2
   !.....Embedding contribution of both Sigmas
   
   !.............full GL and GG, Eq. (16) and (17)
-  GF0%l(:,:,iw) = matmul(matmul(GF0%r(:,:,iw), (im*(fermi_dist(w, Volt)*GammaL + fermi_dist(w, 0.d0)*GammaR)/hbar) &
-       +SigmaL(:,:,iw)), GF0%a(:,:,iw)) !.. GL = Gr * SigmaL * Ga     
-  GF0%g(:,:,iw) = GF0%l(:,:,iw) + GF0%r(:,:,iw) - GF0%a(:,:,iw)
+  GF%l(:,:,iw) = matmul(matmul(GF%r(:,:,iw), (im*(fermi_dist(w, Volt)*GammaL + fermi_dist(w, 0.d0)*GammaR)/hbar) &
+       +SigmaL(:,:,iw)), GF%a(:,:,iw)) !.. GL = Gr * SigmaL * Ga     
+  GF%g(:,:,iw) = GF%l(:,:,iw) + GF%r(:,:,iw) - GF%a(:,:,iw)
   
   deallocate(work_1, work_2)   
 end subroutine G_full
@@ -217,7 +217,7 @@ subroutine GL_of_0()
            
            s =(0.d0, 0.d0)
            do k1 = 1, N_of_w
-              s = s + GF0%L(i+s1,i+s2,k1)
+              s = s + GF%L(i+s1,i+s2,k1)
            end do
            G_nil(i+s1,i+s2)=s*pp
            
@@ -243,8 +243,8 @@ subroutine G0_R_A()
        call Inverse_complex(Natoms, work1, info)
        call Hermitian_Conjg(work1, Natoms, work2)
        
-       GF0%r(:,:,j) = work1
-       GF0%a(:,:,j) = work2
+       GF%r(:,:,j) = work1
+       GF%a(:,:,j) = work2
     end do
 
 end subroutine G0_R_A
@@ -258,14 +258,14 @@ end subroutine G0_R_A
     work1 = (0.d0, 0.d0) ; work2 =(0.d0, 0.d0) ; work3 = (0.d0, 0.d0); work4 = (0.d0, 0.d0)
     do j = 1 , N_of_w
        w = omega(j)
-       work1 = GF0%r(:,:,j) 
-       work2 = GF0%a(:,:,j)
+       work1 = GF%r(:,:,j) 
+       work2 = GF%a(:,:,j)
 
        work3 = matmul(matmul(work1, im*(fermi_dist(w, Volt)*GammaL + fermi_dist(w, 0.d0)*GammaR)), work2) 
       ! work4 = matmul(matmul(work1, im*((fermi_dist(w, Volt)-1.d0)*GammaL + (fermi_dist(w, 0.d0)-1.d0)*GammaR)), work2)
-       GF0%L(:,:,j) = work3
-       !GF0%G(:,:,j) = work4
-       GF0%G(:,:,j) =  GF0%L(:,:,j) + GF0%R(:,:,j) - GF0%A(:,:,j)
+       GF%L(:,:,j) = work3
+       !GF%G(:,:,j) = work4
+       GF%G(:,:,j) =  GF%L(:,:,j) + GF%R(:,:,j) - GF%A(:,:,j)
     end do
   end subroutine G0_L_G 
 
@@ -318,13 +318,13 @@ complex*16 function Omega_r(i, j, sp, sp1, iw)
                  m = i+s1; n= j+s
                  !.....both second order diagram contributions
                  !_________ 3rd diagram
-                 Omr = Omr + GF0%r(ii,jj,k_1)*GF0%L(n,m,k_2)*GF0%G(m,n,k_3) & 
-                      + GF0%L(ii,jj,k_1)*GF0%L(n,m,k_2)*GF0%r(m,n,k_3) & 
-                      + GF0%L(ii,jj,k_1)*GF0%a(n,m,k_2)*GF0%L(m,n,k_3) &
+                 Omr = Omr + GF%r(ii,jj,k_1)*GF%L(n,m,k_2)*GF%G(m,n,k_3) & 
+                      + GF%L(ii,jj,k_1)*GF%L(n,m,k_2)*GF%r(m,n,k_3) & 
+                      + GF%L(ii,jj,k_1)*GF%a(n,m,k_2)*GF%L(m,n,k_3) &
                       
-                      - GF0%r(ii,n,k_1)*GF0%L(n,m,k_2)*GF0%G(m,jj,k_3) &
-                      - GF0%L(ii,n,k_1)*GF0%L(n,m,k_2)*GF0%r(m,jj,k_3) &
-                      - GF0%L(ii,n,k_1)*GF0%a(n,m,k_2)*GF0%L(m,jj,k_3) 
+                      - GF%r(ii,n,k_1)*GF%L(n,m,k_2)*GF%G(m,jj,k_3) &
+                      - GF%L(ii,n,k_1)*GF%L(n,m,k_2)*GF%r(m,jj,k_3) &
+                      - GF%L(ii,n,k_1)*GF%a(n,m,k_2)*GF%L(m,jj,k_3) 
                       !_________ 4th diagram
                    
               end do
@@ -357,12 +357,12 @@ subroutine int_SigLnG(i,j,sp,sp1,iw,SigL,SigG) !... interaction contributions of
               do s1 = 0, 1
                  m = i+s1; n= j+s
                  
-                 SigL = SigL + GF0%L(ii,jj,k1)*GF0%G(n,m,k2)*GF0%L(m,n,k3) &
-                      - GF0%L(ii,n,k1)*GF0%G(n,m,k2)*GF0%L(m,jj,k3) 
+                 SigL = SigL + GF%L(ii,jj,k1)*GF%G(n,m,k2)*GF%L(m,n,k3) &
+                      - GF%L(ii,n,k1)*GF%G(n,m,k2)*GF%L(m,jj,k3) 
                       
                 
-                 SigG = SigG + GF0%G(m,n,k1)*GF0%L(n,m,k2)*GF0%G(ii,jj,k3) &
-                      - GF0%G(ii,m,k1)*GF0%L(m,n,k2)*GF0%G(n,jj,k3) 
+                 SigG = SigG + GF%G(m,n,k1)*GF%L(n,m,k2)*GF%G(ii,jj,k3) &
+                      - GF%G(ii,m,k1)*GF%L(m,n,k2)*GF%G(n,jj,k3) 
                  
               end do
            end do
@@ -374,4 +374,50 @@ subroutine int_SigLnG(i,j,sp,sp1,iw,SigL,SigG) !... interaction contributions of
   SigL = SigL*pp*pp ; SigG = SigG*pp*pp
 end subroutine int_SigLnG
 
+!=====================================================
+!========Calcualtions needed Spin Texture=============
+!=====================================================
+
+subroutine avg_spin(Volt, S_alpha, N, unit_num)
+  implicit none
+  integer :: i, s1, s2, unit_num, N
+  real*8 :: Volt
+  complex*16 :: S_alpha(N, 3), traces(3)
+  complex*16 :: pop_up, pop_down, pref
+  
+  S_alpha = (0.d0, 0.d0)
+  pref = -im*0.5d0*hbar*hbar
+  
+  do i = 1, Natoms, 2
+     traces = (0.d0, 0.d0)
+   
+     do s1 = 0, 1   
+        do s2 = 0, 1
+           traces(1) = traces(1) + pauli_x(s1+1, s2+1) * G_nil(i+s2, i+s1)
+           traces(2) = traces(2) + pauli_y(s1+1, s2+1) * G_nil(i+s2, i+s1)
+           traces(3) = traces(3) + pauli_z(s1+1, s2+1) * G_nil(i+s2, i+s1)
+        end do
+     end do
+
+     S_alpha(i,1) = traces(1) * pref
+     S_alpha(i,2) = traces(2) * pref
+     S_alpha(i,3) = traces(3) * pref
+
+  end do
+  
+  pop_down = (0.d0, 0.d0); pop_up = (0.d0, 0.d0)
+  !..write out the spin operator information
+  do i = 1, Natoms, 2
+     
+     pop_up = - im*G_nil(i,i)*hbar       !...spin up at site i
+     pop_down = - im*G_nil(i+1,i+1)*hbar       !...spin down at site i
+     
+     !... site, Volt, Sx, Sy, Sz, n_down, n_up
+     write(unit_num, *) Volt, (i+1)/2, real(S_alpha(i, 1)), real(S_alpha(i, 2)), real(S_alpha(i, 3)), real(pop_down), real(pop_up)
+  end do
+  flush(unit_num)
+end subroutine avg_spin
+
 end module GreensFunctions
+
+

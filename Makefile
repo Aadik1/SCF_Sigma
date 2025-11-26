@@ -10,7 +10,7 @@ input   =
 
 CFLAGC  = 
 
-#FCOMPL  = af90  $(DEBUG) 
+#FCOMPL  = af90  $(DEBUG)
 FCOMPL  = gfortran
 CCOMPL  = 
 # list of other directories for source files

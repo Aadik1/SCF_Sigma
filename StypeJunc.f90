@@ -4,7 +4,7 @@ program StypeJunction_Spin
   use OMP_Lib
   implicit none
   real*8 :: V1, J_up, J_down, total_time, polarisation
-  integer ::  k, i, start_tick, end_tick, rate, max_count
+  integer ::  k, i, start_tick, end_tick, rate, max_count, j, iw
   character(len=30) :: vfn
 
   !....creates runtime datasheet 
@@ -25,9 +25,9 @@ program StypeJunction_Spin
   allocate(GammaL(Natoms, Natoms)); allocate(GammaR(Natoms, Natoms))
   call SOC_Hamiltonian()
    
-  GammaL = (0.d0, 0.d0); GammaL(1,1) = Gamma;  GammaL(2,2) = Gamma 
+  GammaL = (0.d0, 0.d0); GammaL(1,1) = Gamma;  GammaL(2,2) = Gamma + del_Gamma
   
-  GammaR = (0.d0, 0.d0); GammaR(Natoms-1, Natoms-1) = Gamma;  GammaR(Natoms, Natoms) = Gamma + del_Gamma
+  GammaR = (0.d0, 0.d0); GammaR(Natoms-1, Natoms-1) = Gamma;  GammaR(Natoms, Natoms) = Gamma 
   
   !......................Defines the level width funcitons for L,R-leads to central region, i.e. the respective couplings
   
@@ -62,11 +62,8 @@ program StypeJunction_Spin
   deallocate(Eigenvec, Ev)
   
 !.......................Allocates Greens Functions for the integrals within the Sigmas across all omegas and organises them into user defined type GF0 and GFf in 'mod_Gfunctions.f90'
-  allocate(GF0%r(Natoms, Natoms, N_of_w));  allocate(GF0%a(Natoms, Natoms, N_of_w))
-  allocate(GF0%L(Natoms, Natoms, N_of_w));  allocate(GF0%G(Natoms, Natoms, N_of_w))
-
-  allocate(GFf%L(Natoms, Natoms, N_of_w));  allocate(GFf%G(Natoms, Natoms, N_of_w))
-  allocate(GFf%R(Natoms, Natoms, N_of_w));  allocate(GFf%A(Natoms, Natoms, N_of_w))
+  allocate(GF%r(Natoms, Natoms, N_of_w));  allocate(GF%a(Natoms, Natoms, N_of_w))
+  allocate(GF%L(Natoms, Natoms, N_of_w));  allocate(GF%G(Natoms, Natoms, N_of_w))
 
   allocate(G_nil(Natoms, Natoms))
 !.......................Allocates all the full self-energies and full Greens functions needed in the current
@@ -75,28 +72,35 @@ program StypeJunction_Spin
 !...............calculate GR and GA for all voltages on the omega grid
   allocate(work1(Natoms, Natoms)); allocate(work2(Natoms, Natoms))
   allocate(work3(Natoms, Natoms)); allocate(work4(Natoms, Natoms))
+
+  !......Sigma Operator
+  allocate(S_a(Natoms,3))
   
   !.......................Calculates and plots Voltage vs Current curve
-
   open(3, file='Print.dat', status='unknown')
   
   write(vfn,'(i0)') order
   open(30, file='Volt_Current_'//trim(vfn)//'.dat', status='unknown')
+  open(130,file='Greens_functions.dat',status='unknown')
+  open(230, file='Spin_operator.dat',status='unknown')
 
-
+  first = .true. 
   do k = 0, Volt_range
      V1 = V + k*delv
    
      call Current(V1, J_up, J_down)
-     polarisation = (J_up-J_down)/(J_up+J_down)
+     if (first) first = .false.
+     
+     polarisation = (J_down-J_up) !/(J_up+J_down)
      write(30, *) V1, J_up, J_down, polarisation
      flush(30)
+
+     call avg_spin(V1, S_a, Natoms, 230)
      
      print *, 'Progress:', k/(Volt_range*0.01), '%', J_up, J_down
   end do
   
-  close(3)
-  close(30)
+  close(3);  close(30);  close(130); close(230)
   
   call SYSTEM_CLOCK(COUNT=end_tick)
   total_time = real(end_tick - start_tick)/real(rate)
@@ -109,10 +113,9 @@ program StypeJunction_Spin
   flush(212)
   close(212)
 
-  deallocate(GFf%L, GFf%G,GFf%R, GFf%A)
-  deallocate(GF0%r, GF0%a, GF0%L, GF0%G) 
+  deallocate(GF%r, GF%a, GF%L, GF%G) 
   deallocate(work1, work2, work3, work4)
-  deallocate(H, Hub, omega)
+  deallocate(H, Hub, omega, S_a)
   deallocate(SigmaL, SigmaR, SigmaG)
   deallocate(GammaL, GammaR, G_nil)
 end program StypeJunction_Spin

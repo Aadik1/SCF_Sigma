@@ -50,17 +50,24 @@ subroutine input_SOC()
   close(22) 
   
   beta = 1.d0/(kb*T)
-  N_leads = N_leads*2 !..accounts for spin
-  Natoms = 2*N_ions*N_turns + 2*N_leads!...# of ions per turn of the helix  and the # of turns multiplied by 2 for spins, then add the leads on either end
+  Natoms = 2*N_ions*N_turns !...# of ions per turn of the helix  and the # of turns multiplied by 2 for spins, then add the leads on either end
 
   Volt_range = (Vf - V)/delv
-
-  pauli_z = 0.d0; pauli_z(1,1) = 1.d0; pauli_z(2,2) = -1.d0
-  
+ 
   write(*,*) 'T:', T, 'V:', V, 'mu:', mu, 'Volt_range:', Volt_range, 'Hubbard:', Hubbard
   write(*,*) 'Order:', order, 'Natoms:', Natoms
   write(*,*) 'delta:', delta
   write(*,*) 'pulay:', pulay
+
+  !...Define Pauli matrices
+  !...Pauli X
+  pauli_x = (0.d0, 0.d0); pauli_x(1,2) = (1.d0, 0.d0); pauli_x(2,1) = (1.d0, 0.d0)
+  
+  !...Pauli Y
+  pauli_y= (0.d0, 0.d0); pauli_y(1,2) = -im; pauli_y(2,1) = im
+  
+  !...Pauli Z
+  pauli_z = (0.d0, 0.d0); pauli_z(1,1) = (1.d0, 0.d0);  pauli_z(2,2) = (-1.d0, 0.d0)
 end subroutine input_SOC
 
 subroutine PrintFunctions()
@@ -96,8 +103,8 @@ subroutine PrintFunctions()
      write(12, '(i3,10(a,2f10.5,a))') j,(' [',Eigenvec(i,j),'] ', i = 1, Natoms)
   end do
 
-  write(12,*) 'Natoms:', Natoms-N_leads
-  write(12,*) 'N_leads:', N_leads
+  write(12,*) 'Natoms:', Natoms
+  write(12,*) 'Number of Sites', Natoms/2
 
   close(12)
 end subroutine PrintFunctions
@@ -111,8 +118,8 @@ subroutine trans(iw, Volt, trans_up, trans_down) !....square bracket terms of Eq
 
   w = omega(iw)
 
-  work1 = GF0%L(:,:,iw)
-  work2 = GF0%G(:,:,iw)
+  work1 = GF%L(:,:,iw)
+  work2 = GF%G(:,:,iw)
   
   work3 = im*matmul(GammaL, (fermi_dist(w, Volt)-1.d0)*work1 - fermi_dist(w, Volt)*work2)
 
