@@ -37,7 +37,7 @@ subroutine input_SOC()
     case("pulay");        read(line(eq_pos+1:),*) pulay
     case("restart");      read(line(eq_pos+1:),*) restart
        
-    case("E_CC");      read(line(eq_pos+1:),*) E_CC
+    case("E_CC");         read(line(eq_pos+1:),*) E_CC
     case("t_hop");        read(line(eq_pos+1:),*) t_hop
     case("lamb");         read(line(eq_pos+1:),*) lamb
     case("Hubbard");      read(line(eq_pos+1:),*) Hubbard
@@ -55,7 +55,7 @@ subroutine input_SOC()
   Volt_range = (Vf - V)/delv
  
   write(*,*) 'T:', T, 'V:', V, 'mu:', mu, 'Volt_range:', Volt_range, 'Hubbard:', Hubbard
-  write(*,*) 'Order:', order, '  # of site:', Natoms/2
+  write(*,*) 'Order:', order, '  # of sites:', Natoms/2
   write(*,*) 'delta:', delta
   write(*,*) 'pulay:', pulay
 

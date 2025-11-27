@@ -65,6 +65,8 @@ program StypeJunction_Spin
   allocate(GF%r(Natoms, Natoms, N_of_w));  allocate(GF%a(Natoms, Natoms, N_of_w))
   allocate(GF%L(Natoms, Natoms, N_of_w));  allocate(GF%G(Natoms, Natoms, N_of_w))
 
+  allocate(GF%old(Natoms, Natoms, N_of_w))
+
   allocate(G_nil(Natoms, Natoms))
 !.......................Allocates all the full self-energies and full Greens functions needed in the current
   allocate(SigmaR(Natoms, Natoms, N_of_W)); allocate(SigmaL(Natoms, Natoms, N_of_w)); allocate(SigmaG(Natoms, Natoms, N_of_w))
@@ -113,7 +115,7 @@ program StypeJunction_Spin
   flush(212)
   close(212)
 
-  deallocate(GF%r, GF%a, GF%L, GF%G) 
+  deallocate(GF%r, GF%a, GF%L, GF%G, GF%old) 
   deallocate(work1, work2, work3, work4)
   deallocate(H, Hub, omega, S_a)
   deallocate(SigmaL, SigmaR, SigmaG)

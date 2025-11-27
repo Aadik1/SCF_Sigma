@@ -91,6 +91,8 @@ contains
        if (err .le. epsilon .or. order .eq. 0) then
           write(*,*)'... REACHED REQUIRED ACCURACY ...'
           exit
+       else if (iteration .gt. 300) then
+          write(*,*) 'DIVERGED at:', Volt, 'Volts'
        end if
        
     end DO
